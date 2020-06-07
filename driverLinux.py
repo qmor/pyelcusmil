@@ -429,38 +429,39 @@ class Mil1553LinuxDriver:
         self.tmkUsbCnt = 0
         self.tmkCnt = 0
         self.tmkCurNumber = -1
-        self.tmkUsbNumMap = [0 for _ in range(M + AX_TMKUSB_NUMBER + 1)]
+        self.tmkUsbNumMap = [0 for _ in range(MAX_TMKUSB_NUMBER + 1)]
         self._ahVTMK4VxDusb = [0 for _ in range(MAX_TMKUSB_NUMBER + 1)]
 
     def rtbusy(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtbusy)
-        return fcntl.ioctl(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCrtbusy)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtbusy)
 
     def rtgetcmddata(self, rtBusCommand):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetcmddata, rtBusCommand)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetcmddata, rtBusCommand)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetcmddata, rtBusCommand)
 
     def rtenable(self, rtEnable):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtenable, rtEnable)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtenable, rtEnable)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtenable, rtEnable)
 
     def tmk_open(self):
+        global _hVTMK4VxD
         _VTMK4Arg = 0
-        if Mil1553LinuxDriver._hVTMK4VxD != 0:
+        if _hVTMK4VxD != 0:
             return 0
         self.tmkCnt = 0
-        Mil1553LinuxDriver._hVTMK4VxD = CLibrary.INSTANCE.open("/dev/tmk1553b", 0)
-        if Mil1553LinuxDriver._hVTMK4VxD < 0:
-            Mil1553LinuxDriver._hVTMK4VxD = 0
+        _hVTMK4VxD = os.open("/dev/tmk1553b", 0)
+        if _hVTMK4VxD < 0:
+            _hVTMK4VxD = 0
         _VTMK4Arg = fcntl.ioctl(_hVTMK4VxD, TMK_IOCGetVersion, 0)
         if (_VTMK4Arg < 0) or (_VTMK4Arg < TMK_VERSION_MIN):
             os.close(Mil1553LinuxDriver._hVTMK4VxD)
@@ -471,24 +472,24 @@ class Mil1553LinuxDriver:
 
         self.tmkUsbCnt = 0
         for iTMK in range(MAX_TMKUSB_NUMBER):
-            _ahVTMK4VxDusb[iTMK] = 0
-            tmkUsbNumMap[iTMK] = 0
+            self._ahVTMK4VxDusb[iTMK] = 0
+            self.tmkUsbNumMap[iTMK] = 0
 
         for iTMK in range(MAX_TMKUSB_NUMBER):
-            devName = String.format("/dev/tmk1553busb%d", iTMK)
-            _ahVTMK4VxDusb[self.tmkUsbCnt] = CLibrary.INSTANCE.open(devName, 0)
-            if _ahVTMK4VxDusb[self.tmkUsbCnt] < 0:
-                _ahVTMK4VxDusb[self.tmkUsbCnt] = 0
+            devName = "/dev/tmk1553busb%d" %iTMK
+            self._ahVTMK4VxDusb[self.tmkUsbCnt] = os.open(devName, 0)
+            if self._ahVTMK4VxDusb[self.tmkUsbCnt] < 0:
+                self._ahVTMK4VxDusb[self.tmkUsbCnt] = 0
                 continue
-            _VTMK4Arg = fcntl.ioctl(_ahVTMK4VxDusb[self.tmkUsbCnt], TMK_IOCGetVersion, 0)
+            _VTMK4Arg = fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkUsbCnt], TMK_IOCGetVersion, 0)
             if _VTMK4Arg < 0 or _VTMK4Arg < TMKUSB_VERSION_MIN:
-                CLibrary.INSTANCE.close(_ahVTMK4VxDusb[self.tmkUsbCnt])
-                _ahVTMK4VxDusb[self.tmkUsbCnt] = 0
+                os.close(self._ahVTMK4VxDusb[self.tmkUsbCnt])
+                self._ahVTMK4VxDusb[self.tmkUsbCnt] = 0
                 return VTMK_BAD_VERSION
             else:
-                CLibrary.INSTANCE.close(_ahVTMK4VxDusb[self.tmkUsbCnt])
-                _ahVTMK4VxDusb[self.tmkUsbCnt] = 0
-            tmkUsbNumMap[self.tmkUsbCnt] = iTMK
+                os.close(self._ahVTMK4VxDusb[self.tmkUsbCnt])
+                self._ahVTMK4VxDusb[self.tmkUsbCnt] = 0
+            self.tmkUsbNumMap[self.tmkUsbCnt] = iTMK
             self.tmkUsbCnt += 1
 
         if not (_hVTMK4VxD == 0) and not (self.tmkUsbCnt == 0):
@@ -498,26 +499,26 @@ class Mil1553LinuxDriver:
     def mtgetsw(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCmtgetsw)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtgetsw)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtgetsw)
 
     def tmkconfig(self, tmkNumber):
         if tmkNumber < 0 or tmkNumber >= self.tmkCnt + self.tmkUsbCnt:
             return TMK_BAD_NUMBER
-        if tmkNumber < tmkCnt:
+        if tmkNumber < self.tmkCnt:
             if _hVTMK4VxD == 0:
                 return TMK_BAD_NUMBER
             self.tmkCurNumber = tmkNumber
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkconfig, tmkNumber)
 
-        devName = "/dev/tmk1553busb%d" % tmkUsbNumMap[tmkNumber - tmkCnt]
-        _ahVTMK4VxDusb[tmkNumber - tmkCnt] = os.open(devName, 0)
-        if _ahVTMK4VxDusb[tmkNumber - tmkCnt] == 0 or _ahVTMK4VxDusb[tmkNumber - tmkCnt] < 0:
-            _ahVTMK4VxDusb[tmkNumber - tmkCnt] = 0
+        devName = "/dev/tmk1553busb%d" % self.tmkUsbNumMap[tmkNumber - self.tmkCnt]
+        self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt] = os.open(devName, 0)
+        if self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt] == 0 or self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt] < 0:
+            self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt] = 0
             return TMK_BAD_NUMBER
 
-        Result = CLibrary.INSTANCE.ioctl(_ahVTMK4VxDusb[tmkNumber - tmkCnt], TMK_IOCtmkconfig, tmkNumber)
+        Result = fcntl.ioctl(self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt], TMK_IOCtmkconfig, tmkNumber)
         if Result == 0:
             self.tmkCurNumber = tmkNumber
         return Result
@@ -535,13 +536,13 @@ class Mil1553LinuxDriver:
             if _hVTMK4VxD == 0:
                 return TMK_BAD_NUMBER
             self.tmkCurNumber = -1
-            return CLibrary.INSTANCE.ioctl(_hVTMK4VxD, TMK_IOCtmkdone, tmkNumber)
+            return fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkdone, tmkNumber)
 
         if tmkNumber == ALL_TMKS:
             self.tmkCurNumber = -1
-            CLibrary.INSTANCE.ioctl(_hVTMK4VxD, TMK_IOCtmkdone, tmkNumber)
+            fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkdone, tmkNumber)
             bTMK = 0
-            eTMK = tmkUsbCnt - 1
+            eTMK = self.tmkUsbCnt - 1
         elif tmkNumber < 0 or tmkNumber >= self.tmkCnt + self.tmkUsbCnt:
             return TMK_BAD_NUMBER
         else:
@@ -550,11 +551,11 @@ class Mil1553LinuxDriver:
             bTMK = eTMK = tmkNumber - self.tmkCnt
 
         for iTMK in range(bTMK, eTMK, 1):
-            if _ahVTMK4VxDusb[iTMK] == 0:
-                Result = fcntl.ioctl(_ahVTMK4VxDusb[iTMK], TMK_IOCtmkdone, iTMK)
-                os.close(_ahVTMK4VxDusb[iTMK])
+            if self._ahVTMK4VxDusb[iTMK] == 0:
+                Result = fcntl.ioctl(self._ahVTMK4VxDusb[iTMK], TMK_IOCtmkdone, iTMK)
+                os.close(self._ahVTMK4VxDusb[iTMK])
 
-            _ahVTMK4VxDusb[iTMK] = 0
+            self._ahVTMK4VxDusb[iTMK] = 0
 
         return Result
 
@@ -567,7 +568,7 @@ class Mil1553LinuxDriver:
             self.tmkCurNumber = tmkNumber
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkselect, tmkNumber)
 
-        if _ahVTMK4VxDusb[tmkNumber - tmkCnt] == 1:
+        if self._ahVTMK4VxDusb[tmkNumber - self.tmkCnt] == 1:
             self.tmkCurNumber = tmkNumber
         else:
             self.tmkCurNumber = -1
@@ -586,7 +587,7 @@ class Mil1553LinuxDriver:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetmode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetmode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetmode)
 
     def tmksetcwbits(self, tmkSetControl):
         if self.tmkCurNumber < 0:
@@ -594,7 +595,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmksetcwbits, tmkSetControl)
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmksetcwbits, tmkSetControl)
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmksetcwbits, tmkSetControl)
 
     def tmkclrcwbits(self, tmkClrControl):
         if self.tmkCurNumber < 0:
@@ -603,41 +604,41 @@ class Mil1553LinuxDriver:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmksetcwbits, tmkClrControl)
             return
 
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmksetcwbits, tmkClrControl)
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmksetcwbits, tmkClrControl)
 
     def tmkgetcwbits(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetcwbits)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetcwbits)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetcwbits)
 
     def tmkwaitevents(self, maskEvents, fWait):
         _VTMK4Arg = [0, 0]
         tmkMask = 0
         DrvMask = 0
 
-        if tmkCnt > 31:
+        if self.tmkCnt > 31:
             DevMask = 0xFFFFFFFF
         else:
-            DevMask = (1 << tmkCnt) - 1
+            DevMask = (1 << self.tmkCnt) - 1
         if (maskEvents & DevMask) == 0:  # // usb only
             _VTMK4Arg[0] = 0
             _VTMK4Arg[1] = fWait
             for iTMK in range(self.tmkUsbCnt):
-                if (maskEvents != 0 & (1 << (iTMK + self.tmkCnt)) != 0) and _ahVTMK4VxDusb[iTMK] != 0:
-                    _VTMK4Arg[0] |= 1 << tmkUsbNumMap[iTMK]
+                if (maskEvents != 0 & (1 << (iTMK + self.tmkCnt)) != 0) and self._ahVTMK4VxDusb[iTMK] != 0:
+                    _VTMK4Arg[0] |= 1 << self.tmkUsbNumMap[iTMK]
 
             if _VTMK4Arg[0] != 0:
                 for iTMK in range(self.tmkUsbCnt):
-                    if _ahVTMK4VxDusb[iTMK] != 0:
-                        DrvMask = fcntl.ioctl(_ahVTMK4VxDusb[iTMK], TMK_IOCtmkwaitevents, _VTMK4Arg)
+                    if self._ahVTMK4VxDusb[iTMK] != 0:
+                        DrvMask = fcntl.ioctl(self._ahVTMK4VxDusb[iTMK], TMK_IOCtmkwaitevents, _VTMK4Arg)
                         break
 
                 if DrvMask > 0:
-                    for iTMK in range(tmkUsbCnt):
-                        if DrvMask != 0 & (1 << tmkUsbNumMap[iTMK]) != 0:
-                            tmkMask |= 1 << (iTMK + tmkCnt)
+                    for iTMK in range(self.tmkUsbCnt):
+                        if DrvMask != 0 & (1 << self.tmkUsbNumMap[iTMK]) != 0:
+                            tmkMask |= 1 << (iTMK + self.tmkCnt)
 
                 else:
                     return DrvMask
@@ -722,7 +723,7 @@ break
     def tmkgetinfo(self, pConfD):
         if self.tmkCurNumber < 0:
             return
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD.getPointer())
             return
         fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD.getPointer())
@@ -730,16 +731,16 @@ break
     def bcreset(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcreset)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcreset)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcreset)
 
     def mtreset(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if self.tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCmtreset)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtreset)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtreset)
 
     def mtdefirqmode(self, mtIrqMode):
         return self.bcdefirqmode(mtIrqMode)
@@ -749,14 +750,14 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcdefirqmode, bcIrqMode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefirqmode, bcIrqMode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefirqmode, bcIrqMode)
 
     def bcgetirqmode(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetirqmode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetirqmode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetirqmode)
 
     def mtgetmaxbase(self):
         return self.bcgetmaxbase()
@@ -766,7 +767,7 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetmaxbase)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetmaxbase)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetmaxbase)
 
     def mtdefbase(self, mtBasePC):
         return self.bcdefbase(mtBasePC)
@@ -776,14 +777,14 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcdefbase, bcBasePC)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbase & 0xffffffff, bcBasePC)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbase & 0xffffffff, bcBasePC)
 
     def bcgetbase(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetbase)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbase)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbase)
 
     def bcputw(self, bcAddr, bcData):
         if self.tmkCurNumber < 0:
@@ -791,14 +792,14 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcputw, bcAddr | (bcData << 16))
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputw, bcAddr | (bcData << 16))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputw, bcAddr | (bcData << 16))
 
     def bcgetw(self, bcAddr):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetw, bcAddr)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetw, bcAddr)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetw, bcAddr)
 
     def bcgetansw(self, bcCtrlCode):
         _VTMK4Arg = bcCtrlCode
@@ -807,7 +808,7 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetansw, _VTMK4Arg)
             return _VTMK4Arg
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetansw, _VTMK4Arg)
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetansw, _VTMK4Arg)
         return _VTMK4Arg
 
     def rtgetblk(self, rtAddr, pcBuffer, cwLength):
@@ -825,7 +826,7 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetblk, c.getPointer())
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetblk, c.getPointer())
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetblk, c.getPointer())
 
     def rtputcmddata(self, rtBusCommand, rtData):
         if self.tmkCurNumber < 0:
@@ -833,7 +834,7 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtputcmddata, rtBusCommand | (rtData << 16))
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputcmddata, rtBusCommand | (rtData << 16))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputcmddata, rtBusCommand | (rtData << 16))
 
     def rtputblk(self, rtAddr, pcBuffer, cwLength):
         # CLong2 c = new CLong2()
@@ -850,7 +851,7 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtputblk, c.getPointer())
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCrtputblk, c.getPointer())
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputblk, byref(c))
 
     def bcputblk(self, bcAddr, pcBuffer, cwLength):
         # CLong2 c = new CLong2()
@@ -865,9 +866,9 @@ break
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcputblk, c.getPointer())
+            fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcputblk, bytef(c))
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputblk, c.getPointer())
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputblk, bytef(c))
 
     def mtgetblk(self, mtAddr, pcBuffer, cwLength):
         self.bcgetblk(mtAddr, pcBuffer, cwLength)
@@ -888,28 +889,28 @@ break
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetblk, c.getPointer())
             return
 
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetblk, c.getPointer())
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetblk, c.getPointer())
 
     def bcdefbus(self, bcBus):
-        if tmkCurNumber < 0:
+        if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcdefbus, bcBus)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbus, bcBus)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbus, bcBus)
 
     def bcgetbus(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetbus)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbus)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbus)
 
     def bcstart(self, bcBase, bcCtrlCode):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcstart, bcBase | (bcCtrlCode << 16))
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstart, bcBase | (bcCtrlCode << 16))
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstart, bcBase | (bcCtrlCode << 16))
 
     def mtstartx(self, mtBase, mtCtrlCode):
         return self.bcstartx(mtBase, mtCtrlCode)
@@ -919,7 +920,7 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcstartx, bcBase | (bcCtrlCode << 16))
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstartx,
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstartx,
                            bcBase | (bcCtrlCode << 16))
 
     def mtdeflink(self, mtBase, mtCtrlCode):
@@ -930,7 +931,7 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcdeflink, bcBase | (bcCtrlCode << 16))
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdeflink,
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdeflink,
                            bcBase | (bcCtrlCode << 16))
 
     def bcgetlink(self):
@@ -941,11 +942,11 @@ break
         c = ctypes.c_uint32
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetlink, byref(c))
             return c.value
 
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetlink, byref(c))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetlink, byref(c))
         return c.value
 
     def mtstop(self):
@@ -956,7 +957,7 @@ break
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcstop)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop)
 
     def bcgetstate(self):
         # class C extends Structure {
@@ -970,106 +971,106 @@ break
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCbcgetstate, byref(c))
             return c.value
 
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetstate, byref(c))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetstate, byref(c))
         return c.value
 
     def rtreset(self):
-        if tmkCurNumber < 0:
+        if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtreset)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtreset)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtreset)
 
     def rtdefirqmode(self, rtIrqMode):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefirqmode, rtIrqMode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefirqmode, rtIrqMode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefirqmode, rtIrqMode)
 
     def rtgetirqmode(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetirqmode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetirqmode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetirqmode)
 
     def rtdefmode(self, rtMode):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefmode, rtMode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefmode, rtMode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefmode, rtMode)
 
     def rtgetmode(self):
-        if tmkCurNumber < 0:
+        if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetmode)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmode)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmode)
 
     def rtgetmaxpage(self):
-        if tmkCurNumber < 0:
+        if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetmaxpage)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmaxpage)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmaxpage)
 
     def rtdefpage(self, rtPage):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefpage, rtPage)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpage, rtPage)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpage, rtPage)
 
     def rtgetpage(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetpage)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpage)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpage)
 
     def rtdefpagepc(self, rtPagePC):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefpagepc, rtPagePC)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpagepc, rtPagePC)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpagepc, rtPagePC)
 
     def rtdefpagebus(self, rtPageBus):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefpagebus, rtPageBus)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpagebus, rtPageBus)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefpagebus, rtPageBus)
 
     def rtgetpagepc(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetpagepc)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagepc)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagepc)
 
     def rtgetpagebus(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetpagebus)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagebus)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagebus)
 
     def rtdefaddress(self, rtAddress):
-        if tmkCurNumber < 0:
+        if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefaddress, rtAddress)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefaddress, rtAddress)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefaddress, rtAddress)
 
     def rtgetaddress(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetaddress)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetaddress)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetaddress)
 
     def rtdefsubaddr(self, rtDir, rtSubAddr):
         if self.tmkCurNumber < 0:
@@ -1077,29 +1078,29 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtdefsubaddr, rtDir | (rtSubAddr << 16))
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefsubaddr, rtDir | (rtSubAddr << 16))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtdefsubaddr, rtDir | (rtSubAddr << 16))
 
     def rtgetsubaddr(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetsubaddr)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetsubaddr)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetsubaddr)
 
     def rtputw(self, rtAddr, rtData):
         if self.tmkCurNumber < 0:
             return
-        if tmkCurNumber < tmkCnt:
+        if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtputw, rtAddr | (rtData << 16))
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCrtputw, rtAddr | (rtData << 16))
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputw, rtAddr | (rtData << 16))
 
     def rtgetw(self, rtAddr):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetw, rtAddr)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetw, rtAddr)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetw, rtAddr)
 
     def rtsetanswbits(self, rtSetControl):
         if self.tmkCurNumber < 0:
@@ -1107,7 +1108,7 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtsetanswbits, rtSetControl)
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtsetanswbits, rtSetControl)
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtsetanswbits, rtSetControl)
 
     def rtclranswbits(self, rtClrControl):
         if self.tmkCurNumber < 0:
@@ -1115,11 +1116,11 @@ break
         if self.tmkCurNumber < self.tmkCnt:
             fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtclranswbits, rtClrControl)
             return
-        fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtclranswbits, rtClrControl)
+        fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtclranswbits, rtClrControl)
 
     def rtgetanswbits(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtgetanswbits)
-        return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetanswbits)
+        return fcntl.ioctl(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetanswbits)
