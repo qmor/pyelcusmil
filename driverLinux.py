@@ -8,8 +8,8 @@ libc = CDLL("libc.so.6")
 def ioctl_(fd, cmd, arg):
     result = 0
     try:
-        #result = fcntl.ioctl(fd, cmd, arg)
-        result = libc.ioctl(fd, cmd, arg)
+        result = fcntl.ioctl(fd, cmd, arg)
+        #result = libc.ioctl(fd, cmd, arg)
     except IOError as ex:
         result = ex.errno
     return result
