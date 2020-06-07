@@ -2,12 +2,14 @@ from LTMK import ioctl
 import fcntl
 import os
 import ctypes
+from ctypes import CDLL
 
-
+libc = CDLL("libc.so.6")
 def ioctl_(fd, cmd, arg):
     result = 0
     try:
-        result = fcntl.ioctl(fd, cmd, arg)
+        #result = fcntl.ioctl(fd, cmd, arg)
+        result = libc.ioctl(fd, cmd, arg)
     except IOError as ex:
         result = ex.errno
     return result
@@ -743,15 +745,15 @@ break
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD.getPointer())
+            fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD)
             return
-        ioctl_(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD.getPointer())
+        fcntl.ioctl(_hVTMK4VxD, TMK_IOCtmkgetinfo, pConfD)
 
     def bcreset(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcreset,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcreset)
 
     def mtreset(self):
