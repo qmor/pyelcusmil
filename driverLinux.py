@@ -453,7 +453,7 @@ class Mil1553LinuxDriver:
             return fcntl.ioctl(_hVTMK4VxD, TMK_IOCrtenable, rtEnable)
         return fcntl.ioctl(_ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtenable, rtEnable)
 
-    def TmkOpen(self):
+    def tmk_open(self):
         _VTMK4Arg = 0
         if Mil1553LinuxDriver._hVTMK4VxD != 0:
             return 0
