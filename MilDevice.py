@@ -10,6 +10,6 @@ class Mil1553Device:
         result = self.driver.tmk_open()
         if result != 0:
             raise ("Ошибка TmkOpen ", result)
-        result = self.driver.tmkconfig(self.cardNumber)
+        result = self.driver.tmkconfig(self.cardnumber)
         if result != 0:
             raise ("Ошибка tmkconfig ", result)

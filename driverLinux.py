@@ -3,6 +3,16 @@ import fcntl
 import os
 import ctypes
 
+
+
+def open_(name, mode):
+    res = -1
+    try:
+        res = os.open(name, mode)
+    except Exception as ex:
+        pass
+    return res
+
 TMK_VERSION_MIN = 0x0403
 TMK_VERSION = 0x0406
 TMKUSB_VERSION_MIN = 0x0107
@@ -459,7 +469,7 @@ class Mil1553LinuxDriver:
         if _hVTMK4VxD != 0:
             return 0
         self.tmkCnt = 0
-        _hVTMK4VxD = os.open("/dev/tmk1553b", 0)
+        _hVTMK4VxD = open_("/dev/tmk1553b", 0)
         if _hVTMK4VxD < 0:
             _hVTMK4VxD = 0
         _VTMK4Arg = fcntl.ioctl(_hVTMK4VxD, TMK_IOCGetVersion, 0)
@@ -477,7 +487,7 @@ class Mil1553LinuxDriver:
 
         for iTMK in range(MAX_TMKUSB_NUMBER):
             devName = "/dev/tmk1553busb%d" %iTMK
-            self._ahVTMK4VxDusb[self.tmkUsbCnt] = os.open(devName, 0)
+            self._ahVTMK4VxDusb[self.tmkUsbCnt] = open_(devName, 0)
             if self._ahVTMK4VxDusb[self.tmkUsbCnt] < 0:
                 self._ahVTMK4VxDusb[self.tmkUsbCnt] = 0
                 continue
