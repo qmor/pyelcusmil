@@ -51,7 +51,9 @@ class TTmkEventData(ctypes.Structure):
 
 
 
-
+def ioctrext(fd,cmd,arg):
+    result = libc.ioctl(fd, cmd, arg)
+    return  result
 def ioctl_(fd, cmd, arg):
     result = 0
     try:
@@ -568,7 +570,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCmtgetsw)
+            return ioctl_(_hVTMK4VxD, TMK_IOCmtgetsw,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtgetsw)
 
     def tmkconfig(self, tmkNumber):
@@ -756,7 +758,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCmtreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCmtreset,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtreset)
 
     def mtdefirqmode(self, mtIrqMode):
@@ -783,7 +785,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetmaxbase)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetmaxbase,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetmaxbase)
 
     def mtdefbase(self, mtBasePC):
@@ -924,8 +926,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcdeflink, bcBase | (bcCtrlCode << 16))
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdeflink,
+            return ioctrext(_hVTMK4VxD, TMK_IOCbcdeflink, bcBase | (bcCtrlCode << 16))
+        return ioctrext(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdeflink,
                       bcBase | (bcCtrlCode << 16))
 
     def bcgetlink(self):
@@ -950,7 +952,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcstop)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcstop,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop)
 
     def bcgetstate(self):

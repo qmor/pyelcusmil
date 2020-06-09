@@ -98,11 +98,11 @@ class MilPacket(Structure):
     @staticmethod
     def createFromRaw(pBuffer, sw, statusword):
         res = MilPacket()
-        res.date = LocalDateTime.now()
+        res.date = datetime.datetime.now()
         res.bus = 1 if (((sw & 0xffff) >> 15) == 1) else 0
         res.commandWord = pBuffer[0]
         # this.sw = rawPacket.sw;
-        res.errorcode = rawPacket.sw & 7
+        res.errorcode = sw & 7
         if res.errorcode == 0x00:
             res.errorcode = "SX_NOERR"
         elif res.errorcode == 0x01:
@@ -125,17 +125,19 @@ class MilPacket(Structure):
         if res.errorcode != "SX_NOERR":
             res.status = "FAILED"
 
-        res.format = MilPacket.calcFormat(commandWord)
-        i = MilPacket.getWordsCount(commandWord)
+        res.format = MilPacket.calcFormat(res.commandWord)
+        i = MilPacket.getWordsCount(res.commandWord)
         if i == 0:
             i = 32
 
         if res.format == "CC_FMT_1":
-            System.arraycopy(pBuffer, 1, dataWords, 0, i)
+            for m in range(i):
+                res.dataWords[m] = pBuffer[m+1]
             res.answerWord = pBuffer[i + 1]
         elif res.format == "CC_FMT_2":
             res.answerWord = pBuffer[1]
-            System.arraycopy(pBuffer, 2, dataWords, 0, i)
+            for m in range(i):
+                res.dataWords[m] = pBuffer[2+m]
         elif res.format == "CC_FMT_4":
             res.answerWord = pBuffer[1]
         elif res.format == "CC_FMT_5":
@@ -144,7 +146,7 @@ class MilPacket(Structure):
         elif res.format == "CC_FMT_6":
             res.answerWord = pBuffer[2]
             res.dataWords[0] = pBuffer[1]
-
+        return res
     @staticmethod
     def getWordsCount(cmdWord):
         return cmdWord & 0x1f
@@ -217,14 +219,14 @@ class Mil1553Device:
                     if eventData.nInt == 3:
                         pass
                     elif eventData.nInt == 4:
-                        driver.mtdefbase(self.mtLastBase)
+                        self.driver.mtdefbase(self.mtLastBase)
                         self.mtLastBase = ((self.mtLastBase + 1) & self.mtMaxBase)
                         sw = self.driver.mtgetsw()
                         statusword = eventData.union.mt.wResultX
                         self.driver.mtgetblk(0, pBuffer, 64)
                         packet = MilPacket.createFromRaw(pBuffer, sw, statusword)
 
-                        list.add(packet);
+                        list.put(MilPacket.createCopy(packet))
 
     def listenloopBC(self):
 
@@ -368,7 +370,7 @@ class Mil1553Device:
         if self.paused:
             res = self.driver.mtstartx(mtBase, mtCtrlCode)
             if res == 0:
-                self.paused = false;
+                self.paused = False
     def stopmt(self):
         if not self.paused:
             res = self.driver.mtstop()
@@ -415,7 +417,7 @@ class Mil1553Device:
             self.mtMaxBase = self.driver.mtgetmaxbase()
             for i in range(self.mtMaxBase):
                 self.driver.mtdefbase(i)
-                self.driver.mtdeflink(i + 1, CX_CONT | ECX_NOINT | CX_SIG)
+                self.driver.mtdeflink(i + 1, CX_CONT | CX_NOINT | CX_SIG)
             self.stopmt()
             self.runnerThread = Thread(target=self.listenloopMT, daemon=True)
             self.startmt(0, CX_CONT | CX_NOINT | CX_NOSIG)
