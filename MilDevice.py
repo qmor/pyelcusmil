@@ -113,9 +113,9 @@ class MilPacket(Structure):
 
     @staticmethod
     def calcFormat(cmdword):
-        rtrbit = MilPacket.getRTRBit(cmdWord)
-        subaddress = MilPacket.getSubAddress(cmdWord)
-        wordscount = MilPacket.getWordsCount(cmdWord)
+        rtrbit = MilPacket.getRTRBit(cmdword)
+        subaddress = MilPacket.getSubAddress(cmdword)
+        wordscount = MilPacket.getWordsCount(cmdword)
         isItMode = True if (subaddress == 0 or subaddress == 0x1f) else False
         if rtrbit == 0 and not isItMode:
             return "CC_FMT_1"
@@ -135,13 +135,16 @@ class MilPacket(Structure):
         return None
 
 
+
+
 class Mil1553Device:
 
     def listenloopBC(self):
+
         events = 0
         eventData = TTmkEventData()
         Msg = MilPacket()
-        pBuffer = bytes(128)
+        pBuffer = (ctypes.c_uint16*64)()
         passed = True
         while self.threadRunning:
             passed = False
@@ -155,16 +158,17 @@ class Mil1553Device:
                         print("tmkselect: ", res)
 
                     self.driver.tmkgetevd(eventData)
-                    res = driver.bcdefbase(0)
+                    res = self.driver.bcdefbase(0)
                     if res != 0:
                         print("bcdefbase: ", res)
                     Msg.commandWord = self.driver.bcgetw(0)
-                    Msg.format = Mil1553Packet.calcFormat(Msg.commandWord)
+                    Msg.format = MilPacket.calcFormat(Msg.commandWord)
                     Msg.date = datetime.datetime.now()
-                    cmdcodeWordCount = Mil1553Packet.getWordsCount(Msg.commandWord)
+                    cmdcodeWordCount = MilPacket.getWordsCount(Msg.commandWord)
                     if Msg.format == "CC_FMT_1":
                         self.driver.bcgetblk(1, pBuffer, cmdcodeWordCount)
-                        Msg.dataWords = pBuffer.getShortArray(0, 32)
+                        for i in range(32):
+                            Msg.dataWords[i] = pBuffer[i]
                         Msg.answerWord = self.driver.bcgetw(1 + cmdcodeWordCount)
                     elif Msg.format == "CC_FMT_2":
                         wordcount = cmdcodeWordCount
@@ -172,18 +176,18 @@ class Mil1553Device:
                             wordcount = 32
                         self.driver.bcgetblk(2, pBuffer, wordcount)
                         Msg.dataWords = pBuffer.getShortArray(0, 32)
-                        Msg.answerWord = driver.bcgetw(1)
+                        Msg.answerWord = self.driver.bcgetw(1)
 
                     elif Msg.format == "CC_FMT_4":
-                        Msg.answerWord = driver.bcgetw(1)
+                        Msg.answerWord = self.driver.bcgetw(1)
                     elif Msg.format == "CC_FMT_5":
-                        Msg.answerWord = driver.bcgetw(1)
-                        Msg.dataWords[0] = driver.bcgetw(2)
+                        Msg.answerWord = self.driver.bcgetw(1)
+                        Msg.dataWords[0] = self.driver.bcgetw(2)
 
 
                     elif Msg.format == "CC_FMT_6":
-                        Msg.answerWord = driver.bcgetw(2)
-                        Msg.dataWords[0] = driver.bcgetw(1)
+                        Msg.answerWord = self.driver.bcgetw(2)
+                        Msg.dataWords[0] = self.driver.bcgetw(1)
 
                     if eventData.nInt == 1:
                         Msg.status = "Received"
@@ -208,27 +212,27 @@ class Mil1553Device:
 
                     # listener.msgReceived(new Mil1553Packet(Msg))
             if not self.packetsForSendBC.empty():
-                msg = selfpacketsForSendBC.get()
-                msg.format = Mil1553Packet.calcFormat(msg.commandWord)
+                msg = self.packetsForSendBC.get()
+                msg.format = MilPacket.calcFormat(msg.commandWord)
                 with threading.Lock():
                     res = self.driver.tmkselect(self.cardnumber)
                     if res != 0:
                         print("tmkselect: ", res)
                     if msg.format == "CC_FMT_1":
-                        pBuffer.setShort(0, msg.commandWord)
+                        pBuffer[0] = msg.commandWord
                         for i in range(32):
-                            pBuffer.setShort(i * 2 + 2, msg.dataWords[i])
+                            pBuffer[i+1] = msg.dataWords[i]
 
-                        driver.bcdefbase(0)
-                        driver.bcputblk(0, pBuffer, 64)
-                        driver.bcdefbus(msg.bus)
-                        driver.bcstart(0, DATA_BC_RT)
-                        bcsent += 1
+                        self.driver.bcdefbase(0)
+                        self.driver.bcputblk(0, pBuffer, 64)
+                        self.driver.bcdefbus(msg.bus)
+                        self.driver.bcstart(0, DATA_BC_RT)
+                        self.bcsent += 1
                         msg.status = "SENT"
                     elif msg.format == "CC_FMT_2":
-                        res = driver.bcdefbase(0)
+                        res = self.driver.bcdefbase(0)
                         if res != 0:
-                            System.out.println("bcdefbase: " + res)
+                            print("bcdefbase: ", res)
                         self.driver.bcputw(0, msg.commandWord)
                         res = self.driver.bcdefbus(msg.bus)
                         if res != 0:
@@ -236,7 +240,7 @@ class Mil1553Device:
                         res = self.driver.bcstart(0, DATA_RT_BC)
                         if res != 0:
                             print("bcstart: " + res)
-                        bcsent += 1
+                        self.bcsent += 1
                         msg.status = "SENT"
 
                     elif msg.format == "CC_FMT_4" or msg.format == "CC_FMT_5":
@@ -244,7 +248,7 @@ class Mil1553Device:
                         self.driver.bcputw(0, msg.commandWord)
                         self.driver.bcdefbus(msg.bus)
                         self.driver.bcstart(0, msg.format.asInteger())
-                        bcsent += 1
+                        self.bcsent += 1
                         msg.status = "SENT"
 
 
@@ -254,7 +258,7 @@ class Mil1553Device:
                         self.driver.bcputw(1, msg.dataWords[0])
                         self.driver.bcdefbus(msg.bus)
                         self.driver.bcstart(0, msg.format.asInteger())
-                        bcsent += 1
+                        self.bcsent += 1
                         msg.status = "SENT"
 
     def __init__(self, cardnumber=0):
@@ -262,6 +266,7 @@ class Mil1553Device:
         self.driver = Mil1553LinuxDriver()
         self.packetsForSendBC = queue.Queue()
         self.mode = None
+        self.bcsent = 0
 
     def sendpacket(self, packet):
         if self.mode == 'BC':
@@ -291,4 +296,5 @@ class Mil1553Device:
                 raise ("Ошибка bcdefirqmode() ", result)
             self.runnerThread = Thread(target=self.listenloopBC, daemon=True)
             self.threadRunning = True
+            self.runnerThread.start()
             self.mode = mode

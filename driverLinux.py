@@ -635,7 +635,9 @@ class Mil1553LinuxDriver:
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetcwbits)
 
     def tmkwaitevents(self, maskEvents, fWait):
-        _VTMK4Arg = [0, 0]
+        class Arg(ctypes.Structure):
+            _fields_=[("arg",ctypes.c_uint32*2)]
+        _VTMK4Arg = Arg()
         tmkMask = 0
         DrvMask = 0
 
@@ -644,8 +646,8 @@ class Mil1553LinuxDriver:
         else:
             DevMask = (1 << self.tmkCnt) - 1
         if (maskEvents & DevMask) == 0:  # // usb only
-            _VTMK4Arg[0] = 0
-            _VTMK4Arg[1] = fWait
+            _VTMK4Arg.arg[0] = 0
+            _VTMK4Arg.arg[1] = fWait
             for iTMK in range(self.tmkUsbCnt):
                 if (maskEvents != 0 & (1 << (iTMK + self.tmkCnt)) != 0) and self._ahVTMK4VxDusb[iTMK] != 0:
                     _VTMK4Arg[0] |= 1 << self.tmkUsbNumMap[iTMK]
@@ -666,9 +668,9 @@ class Mil1553LinuxDriver:
 
             return tmkMask
         elif (maskEvents >> self.tmkCnt) == 0:  # // tmk only
-            _VTMK4Arg[0] = maskEvents
-            _VTMK4Arg[1] = fWait
-            if _hVTMK4VxD != 0 and _VTMK4Arg[0] != 0:
+            _VTMK4Arg.arg[0] = maskEvents
+            _VTMK4Arg.arg[1] = fWait
+            if _hVTMK4VxD != 0 and _VTMK4Arg.arg[0] != 0:
                 tmkMask = ioctl_(_hVTMK4VxD, TMK_IOCtmkwaitevents, _VTMK4Arg)
             return tmkMask
         else:
@@ -833,21 +835,16 @@ break
         return _VTMK4Arg
 
     def rtgetblk(self, rtAddr, pcBuffer, cwLength):
-        # CLong2 c = new CLong2()
-        # ByteBuffer bb = c.getPointer().getByteBuffer(0, c.size())
-        # bb.putInt((rtAddr | cwLength << 16))
-        # bb.putInt(0)
-        # bb.putLong(Pointer.nativeValue(pcBuffer))
-        c = ctypes.c_void_p * 3
+        c = (ctypes.c_void_p * 2)()
         c[0].value = rtAddr | cwLength << 16
         c[1].value = 0
-        c[2].value = pcBuffer
+        c[2].value = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCrtgetblk, c.getPointer())
+            ioctl_(_hVTMK4VxD, TMK_IOCrtgetblk, c)
             return
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetblk, c.getPointer())
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetblk, c)
 
     def rtputcmddata(self, rtBusCommand, rtData):
         if self.tmkCurNumber < 0:
@@ -858,59 +855,41 @@ break
         ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputcmddata, rtBusCommand | (rtData << 16))
 
     def rtputblk(self, rtAddr, pcBuffer, cwLength):
-        # CLong2 c = new CLong2()
-        # ByteBuffer bb = c.getPointer().getByteBuffer(0, c.size())
-        # bb.putInt((rtAddr | cwLength << 16))
-        # bb.putInt(0)
-        # bb.putLong(Pointer.nativeValue(pcBuffer))
-        c = ctypes.c_void_p * 3
+        c = (ctypes.c_void_p * 2)()
         c[0].value = rtAddr | cwLength << 16
-        c[1].value = 0
-        c[2].value = pcBuffer
+        c[1].value = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCrtputblk, c.getPointer())
+            ioctl_(_hVTMK4VxD, TMK_IOCrtputblk, c)
             return
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputblk, byref(c))
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputblk, c)
 
     def bcputblk(self, bcAddr, pcBuffer, cwLength):
-        # CLong2 c = new CLong2()
-        # ByteBuffer bb = c.getPointer().getByteBuffer(0, c.size())
-        # bb.putInt((bcAddr | cwLength << 16))
-        # bb.putInt(0)
-        # bb.putLong(Pointer.nativeValue(pcBuffer))
-        c = ctypes.c_void_p * 3
-        c[0].value = bcAddr | cwLength << 16
-        c[1].value = 0
-        c[2].value = pcBuffer
+        c = (ctypes.c_void_p * 2)()
+        c[0] = bcAddr | cwLength << 16
+        c[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCbcputblk, bytef(c))
+            ioctl_(_hVTMK4VxD, TMK_IOCbcputblk, c)
             return
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputblk, bytef(c))
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcputblk, c)
 
     def mtgetblk(self, mtAddr, pcBuffer, cwLength):
         self.bcgetblk(mtAddr, pcBuffer, cwLength)
 
     def bcgetblk(self, bcAddr, pcBuffer, cwLength):
-        # CLong2 c = new CLong2()
-        # ByteBuffer bb = c.getPointer().getByteBuffer(0, c.size())
-        # bb.putInt((bcAddr | cwLength << 16))
-        # bb.putInt(0)
-        # bb.putLong(Pointer.nativeValue(pcBuffer))
-        c = ctypes.c_void_p * 3
-        c[0].value = bcAddr | cwLength << 16
-        c[1].value = 0
-        c[2].value = pcBuffer
+        c = (ctypes.c_void_p * 2)()
+        c[0] = bcAddr | cwLength << 16
+        c[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCbcgetblk, c.getPointer())
+            ioctl_(_hVTMK4VxD, TMK_IOCbcgetblk, c)
             return
 
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetblk, c.getPointer())
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetblk, c)
 
     def bcdefbus(self, bcBus):
         if self.tmkCurNumber < 0:
@@ -960,15 +939,15 @@ break
         #    int _VTMK4Arg;
         # }
         # C c = new C()
-        c = ctypes.c_uint32
+        c = ctypes.c_uint32()
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCbcgetlink, byref(c))
-            return c.value
+            ioctl_(_hVTMK4VxD, TMK_IOCbcgetlink, c)
+            return c
 
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetlink, byref(c))
-        return c.value
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetlink, c)
+        return c
 
     def mtstop(self):
         return self.bcstop()
@@ -981,18 +960,14 @@ break
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop)
 
     def bcgetstate(self):
-        # class C extends Structure {
-        #    int _VTMK4Arg;
-        # }
-        # C c = new C()
-        c = ctypes.c_uint32
+        c = ctypes.c_uint32()
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            ioctl_(_hVTMK4VxD, TMK_IOCbcgetstate, byref(c))
+            ioctl_(_hVTMK4VxD, TMK_IOCbcgetstate, c)
             return c.value
 
-        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetstate, byref(c))
+        ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetstate, c)
         return c.value
 
     def rtreset(self):
