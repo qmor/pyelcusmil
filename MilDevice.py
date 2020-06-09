@@ -4,8 +4,52 @@ from ctypes import Structure
 import ctypes
 from threading import Thread
 import threading
+import datetime
+import queue
+
+
+RT_ENABLE = 0x0000
+RT_DISABLE = 0x001F
+RT_GET_ENABLE = 0xFFFF
+CX_NOSIG = 0x0000
+CX_SIG = 0x8000
+CX_INT = 0x0000
+CX_NOINT = 0x0020
+CX_CONT = 0x0010
+RT_TRANSMIT = 0x0400
+RT_RECEIVE = 0x0000
+RT_ERROR_MASK = 0x4000
+S_ERAO_MASK = 0x01
+S_MEO_MASK = 0x02
+S_IB_MASK = 0x04
+S_TO_MASK = 0x08
+S_EM_MASK = 0x10
+S_EBC_MASK = 0x20
+S_DI_MASK = 0x40
+S_ELN_MASK = 0x80
+S_G1_MASK = 0x1000
+S_G2_MASK = 0x2000
+DATA_BC_RT = 0x00
+DATA_BC_RT_BRCST = 0x08
+DATA_RT_BC = 0x01
+DATA_RT_RT = 0x02
+DATA_RT_RT_BRCST = 0x0A
+CTRL_C_A = 0x03
+CTRL_C_BRCST = 0x0B
+CTRL_CD_A = 0x04
+CTRL_CD_BRCST = 0x0C
+CTRL_C_AD = 0x05
+RT_HBIT_MODE = 0x0001
+RT_FLAG_MODE = 0x0002
+RT_BRCST_MODE = 0x0004
+RT_DATA_BL = 0x2000
 RT_GENER1_BL = 0x0004
 RT_GENER2_BL = 0x4000
+BC_GENER1_BL = 0x0004
+BC_GENER2_BL = 0x4000
+MT_GENER1_BL = 0x0004
+MT_GENER2_BL = 0x4000
+TMK_IRQ_OFF = 0x8000
 
 
 class TTmkConfigData(Structure):
@@ -25,23 +69,70 @@ class TTmkConfigData(Structure):
 
 
 class BC(Structure):
-    _fields_=[("wResult",ctypes.c_uint16),
-              ("wAW1",ctypes.c_uint16),
-              ("wAW2",ctypes.c_uint16)]
+    _fields_ = [("wResult", ctypes.c_uint16),
+                ("wAW1", ctypes.c_uint16),
+                ("wAW2", ctypes.c_uint16)]
+
 
 class EventDataUnion(ctypes.Union):
-    _fields_=[("BC",BC)]
+    _fields_ = [("BC", BC)]
+
 
 class TTmkEventData(Structure):
-    _fields_=[("nInt",ctypes.c_uint32),
-              ("wMode",ctypes.c_uint16),
-              ("Union",EventDataUnion)]
+    _fields_ = [("nInt", ctypes.c_uint32),
+                ("wMode", ctypes.c_uint16),
+                ("Union", EventDataUnion)]
 
 
 class MilPacket(Structure):
-    _fields_ = [("CommandWord", ctypes.c_uint16),
-                ("DataWords", ctypes.c_uint16 * 32),
-                ("AnswerWords", ctypes.c_uint16)]
+    _fields_ = [("commandWord", ctypes.c_uint16),
+                ("dataWords", ctypes.c_uint16 * 32),
+                ("answerWords", ctypes.c_uint16)]
+
+    def __init__(self):
+        self.format = None
+        self.data = None
+        self.status = None
+        self.bus = 0
+
+    @staticmethod
+    def getWordsCount(cmdWord):
+        return cmdWord & 0x1f
+
+    @staticmethod
+    def getRTRBit(cmdWord):
+        return (cmdWord >> 10) & 0x1
+
+    @staticmethod
+    def getSubAddress(cmdWord):
+        return (cmdWord >> 5) & 0x1f
+
+    @staticmethod
+    def getRtAddress(cmdWord):
+        return (cmdWord & 0xffff) >> 11
+
+    @staticmethod
+    def calcFormat(cmdword):
+        rtrbit = MilPacket.getRTRBit(cmdWord)
+        subaddress = MilPacket.getSubAddress(cmdWord)
+        wordscount = MilPacket.getWordsCount(cmdWord)
+        isItMode = True if (subaddress == 0 or subaddress == 0x1f) else False
+        if rtrbit == 0 and not isItMode:
+            return "CC_FMT_1"
+
+        elif rtrbit == 1 and not isItMode:
+            return "CC_FMT_2"
+
+        elif rtrbit == 1 and isItMode and (0 <= wordscount <= 15):
+            return "CC_FMT_4"
+
+        elif rtrbit == 1 and isItMode and (wordscount == 16 or wordscount == 18 or wordscount == 19):
+            return "CC_FMT_5"
+
+        elif rtrbit == 0 and isItMode and (wordscount == 17 or wordscount == 20 or wordscount == 21):
+            return "CC_FMT_6"
+
+        return None
 
 
 class Mil1553Device:
@@ -52,218 +143,129 @@ class Mil1553Device:
         Msg = MilPacket()
         pBuffer = bytes(128)
         passed = True
-        res = 0
-        while self.threadRunning == True:
-                passed = False
-                events = self.driver.tmkwaitevents(1 << self.cardnumber, 100)
+        while self.threadRunning:
+            passed = False
+            events = self.driver.tmkwaitevents(1 << self.cardnumber, 100)
             if events == (1 << self.cardnumber):
                 passed = True
             if passed:
                 with threading.Lock():
-                    res=self.driver.tmkselect(self.cardnumber)
-            if (res != 0) {
-            System.out.println("tmkselect: "+res);
-            }
-            driver.tmkgetevd(eventData);
-            res=driver.bcdefbase((short) 0);
-            if (res != 0) {
-            System.out.println("bcdefbase: "+res);
-            }
-            Msg.commandWord =  driver.bcgetw((short) 0);
-            Msg.format = Mil1553Packet.calcFormat(Msg.commandWord);
-            Msg.date = LocalDateTime.now();
-            short cmdcodeWordCount = Mil1553Packet.getWordsCount(Msg.commandWord);
-            switch(Msg.format)
-            {
-            case CC_FMT_1:
-                driver.bcgetblk((short)
-            1, pBuffer, cmdcodeWordCount);
-            Msg.dataWords = pBuffer.getShortArray(0, 32);
-            Msg.answerWord = driver.bcgetw((short)(1 + cmdcodeWordCount));
-        break;
-        case
-        CC_FMT_2:
-        int
-        wordcount = cmdcodeWordCount;
-        if (wordcount == 0)
-            wordcount = 32;
+                    res = self.driver.tmkselect(self.cardnumber)
+                    if res != 0:
+                        print("tmkselect: ", res)
 
-        driver.bcgetblk((short)
-        2, pBuffer, (short)
-        wordcount);
-        Msg.dataWords = pBuffer.getShortArray(0, 32);
-        Msg.answerWord = driver.bcgetw((short)
-        1);
-        break;
+                    self.driver.tmkgetevd(eventData)
+                    res = driver.bcdefbase(0)
+                    if res != 0:
+                        print("bcdefbase: ", res)
+                    Msg.commandWord = self.driver.bcgetw(0)
+                    Msg.format = Mil1553Packet.calcFormat(Msg.commandWord)
+                    Msg.date = datetime.datetime.now()
+                    cmdcodeWordCount = Mil1553Packet.getWordsCount(Msg.commandWord)
+                    if Msg.format == "CC_FMT_1":
+                        self.driver.bcgetblk(1, pBuffer, cmdcodeWordCount)
+                        Msg.dataWords = pBuffer.getShortArray(0, 32)
+                        Msg.answerWord = self.driver.bcgetw(1 + cmdcodeWordCount)
+                    elif Msg.format == "CC_FMT_2":
+                        wordcount = cmdcodeWordCount
+                        if wordcount == 0:
+                            wordcount = 32
+                        self.driver.bcgetblk(2, pBuffer, wordcount)
+                        Msg.dataWords = pBuffer.getShortArray(0, 32)
+                        Msg.answerWord = driver.bcgetw(1)
 
-    case
-    CC_FMT_4:
-    Msg.answerWord = driver.bcgetw((short)
-    1);
-    break;
+                    elif Msg.format == "CC_FMT_4":
+                        Msg.answerWord = driver.bcgetw(1)
+                    elif Msg.format == "CC_FMT_5":
+                        Msg.answerWord = driver.bcgetw(1)
+                        Msg.dataWords[0] = driver.bcgetw(2)
 
 
-case
-CC_FMT_5:
-Msg.answerWord = driver.bcgetw((short)
-1);
-Msg.dataWords[0] = driver.bcgetw((short)
-2);
-break;
-case
-CC_FMT_6:
-Msg.answerWord = driver.bcgetw((short)
-2);
-Msg.dataWords[0] = driver.bcgetw((short)
-1);
-break;
-default:
-break;
-}
-if (eventData.nInt == 1)
-{
+                    elif Msg.format == "CC_FMT_6":
+                        Msg.answerWord = driver.bcgetw(2)
+                        Msg.dataWords[0] = driver.bcgetw(1)
 
-// if (!packetsForSendBC.isEmpty())
-// packetsForSendBC.remove(0);
+                    if eventData.nInt == 1:
+                        Msg.status = "Received"
 
-Msg.status = EMilPacketStatus.eRECEIVED;
-}
+                    if eventData.nInt == 2:
+                        Msg.status = "Failed"
 
-if (eventData.nInt == 2)
-{
-Msg.status = EMilPacketStatus.eFAILED;
-// if (!packetsForSendBC.isEmpty())
-// {
-   // packetsForSendBC.clear();
-//}
-if (eventData.union.bc.wResult == S_ERAO_MASK)
-    for (DebugReceivedListener listener: DebugReceivedListeners)
-        {
-            listener.msgReceived("The error in a field of the address received RW is found out");
-        }
-        else if (eventData.union.bc.wResult == S_MEO_MASK)
-            for (DebugReceivedListener listener: DebugReceivedListeners)
-                {
-                    listener.msgReceived("The error of a code 'Manchester - 2' is found out at answer RT");
-                }
-                else if (eventData.union.bc.wResult == S_EBC_MASK)
-                    for (DebugReceivedListener listener: DebugReceivedListeners)
-                        {
-                            listener.msgReceived("The error of the echo - control over transfer BC is found out");
-                        }
-                        else if (eventData.union.bc.wResult == S_TO_MASK)
-                            for (DebugReceivedListener listener: DebugReceivedListeners)
-                                {
-                                    listener.msgReceived("It is not received the answer from RT");
-                                }
-                                else if (eventData.union.bc.wResult == S_IB_MASK)
-                                    for (DebugReceivedListener listener: DebugReceivedListeners)
-                                        {
-                                            listener.msgReceived("The established bits in received RW are found out");
-                                        }
-                                    }
-                                    for (IMilMsgReceivedListener listener: msgReceivedListeners)
-                                    {
-                                        listener.msgReceived(new
-                                        Mil1553Packet(Msg));
-                                        }
-                                        }
-                                        }
-                                        if (!packetsForSendBC.isEmpty())
-                                        {
-                                        Mil1553Packet msg = packetsForSendBC.poll();
-                                        msg.format = Mil1553Packet.calcFormat(msg.commandWord);
-                                        synchronized (syncObject) {
-                                        res=driver.tmkselect(cardNumber);
-                                        if (res != 0) {
-                                        System.out.println("tmkselect: " + res);
-                                    }
-                                    if (msg.format == EMilFormat.CC_FMT_1)
-                                    {
-                                    pBuffer.setShort(0, msg.commandWord);
-                                    for (int i=0;i < 32;i++)
-                                        pBuffer.setShort(i * 2 + 2, msg.dataWords[i]);
+                        if eventData.union.bc.wResult == S_ERAO_MASK:
+                            errorcode = "The error in a field of the address received RW is found out"
 
-                                    driver.bcdefbase((short)
-                                    0);
-                                    driver.bcputblk((short)
-                                    0, pBuffer, (short)
-                                    64);
-                                    driver.bcdefbus(msg.bus.toInt());
-                                    driver.bcstart((short)
-                                    0, (short)
-                                    DATA_BC_RT);
-                                    bcsent + +;
-                                    msg.status = EMilPacketStatus.eSENT;
-                                }
-                                else if (msg.format.equals(EMilFormat.CC_FMT_2))
-                                {
-                                res = driver.bcdefbase((short)
-                                0);
-                                if (res != 0) {
-                                System.out.println("bcdefbase: "+res);
-                                }
-                                driver.bcputw((short)
-                                0, msg.commandWord);
-                                res = driver.bcdefbus(msg.bus.toInt());
-                                if (res != 0) {
-                                System.out.println("bcdefbus: "+res);
-                                }
-                                res = driver.bcstart((short)
-                                0, (short)
-                                DATA_RT_BC);
-                                if (res != 0) {
-                                System.out.println("bcstart: "+res);
-                                }
-                                bcsent + +;
-                                msg.status = EMilPacketStatus.eSENT;
-                            }
-                            else if (msg.format.equals(EMilFormat.CC_FMT_4) | | msg.format.equals(EMilFormat.CC_FMT_5))
-                            {
-                            driver.bcdefbase((short)
-                            0);
-                            driver.bcputw((short)
-                            0, msg.commandWord);
-                            driver.bcdefbus((msg.bus.toInt()));
-                            driver.bcstart((short)
-                            0, msg.format.asInteger());
-                            bcsent + +;
-                            msg.status = EMilPacketStatus.eSENT;
-                        }
+                        elif eventData.union.bc.wResult == S_MEO_MASK:
+                            errorcode = "The error of a code 'Manchester - 2' is found out at answer RT"
 
-                        else if (msg.format.equals(EMilFormat.CC_FMT_6))
-                        {
-                        driver.bcdefbase((short)
-                        0);
-                        driver.bcputw((short)
-                        0, msg.commandWord);
-                        driver.bcputw((short)
-                        1, msg.dataWords[0]);
-                        driver.bcdefbus(msg.bus.toInt());
-                        driver.bcstart((short)
-                        0, msg.format.asInteger());
-                        bcsent + +;
-                        msg.status = EMilPacketStatus.eSENT;
-                    }
-                    else
-                    {
-                    // packetsForSendBC.remove(0);
-                    for (DebugReceivedListener listener: DebugReceivedListeners)
-                        {
-                            listener.msgReceived("Exchange format is not realized yet");
-                        }
-                        }
-                        }
-                        }
-                        }
+                        elif eventData.union.bc.wResult == S_EBC_MASK:
+                            errorcode = "The error of the echo - control over transfer BC is found out"
+
+                        elif eventData.union.bc.wResult == S_TO_MASK:
+                            errorcode = "It is not received the answer from RT"
+
+                        elif eventData.union.bc.wResult == S_IB_MASK:
+                            errorcode = "The established bits in received RW are found out"
+
+                    # listener.msgReceived(new Mil1553Packet(Msg))
+            if not self.packetsForSendBC.empty():
+                msg = selfpacketsForSendBC.get()
+                msg.format = Mil1553Packet.calcFormat(msg.commandWord)
+                with threading.Lock():
+                    res = self.driver.tmkselect(self.cardnumber)
+                    if res != 0:
+                        print("tmkselect: ", res)
+                    if msg.format == "CC_FMT_1":
+                        pBuffer.setShort(0, msg.commandWord)
+                        for i in range(32):
+                            pBuffer.setShort(i * 2 + 2, msg.dataWords[i])
+
+                        driver.bcdefbase(0)
+                        driver.bcputblk(0, pBuffer, 64)
+                        driver.bcdefbus(msg.bus)
+                        driver.bcstart(0, DATA_BC_RT)
+                        bcsent += 1
+                        msg.status = "SENT"
+                    elif msg.format == "CC_FMT_2":
+                        res = driver.bcdefbase(0)
+                        if res != 0:
+                            System.out.println("bcdefbase: " + res)
+                        self.driver.bcputw(0, msg.commandWord)
+                        res = self.driver.bcdefbus(msg.bus)
+                        if res != 0:
+                            print("bcdefbus: ", res)
+                        res = self.driver.bcstart(0, DATA_RT_BC)
+                        if res != 0:
+                            print("bcstart: " + res)
+                        bcsent += 1
+                        msg.status = "SENT"
+
+                    elif msg.format == "CC_FMT_4" or msg.format == "CC_FMT_5":
+                        self.driver.bcdefbase(0)
+                        self.driver.bcputw(0, msg.commandWord)
+                        self.driver.bcdefbus(msg.bus)
+                        self.driver.bcstart(0, msg.format.asInteger())
+                        bcsent += 1
+                        msg.status = "SENT"
+
+
+                    elif msg.format == "CC_FMT_6":
+                        self.driver.bcdefbase(0)
+                        self.driver.bcputw(0, msg.commandWord)
+                        self.driver.bcputw(1, msg.dataWords[0])
+                        self.driver.bcdefbus(msg.bus)
+                        self.driver.bcstart(0, msg.format.asInteger())
+                        bcsent += 1
+                        msg.status = "SENT"
 
     def __init__(self, cardnumber=0):
         self.cardnumber = cardnumber
         self.driver = Mil1553LinuxDriver()
+        self.packetsForSendBC = queue.Queue()
         self.mode = None
+
     def sendpacket(self, packet):
-        if (self.mode=='BC'):
-            pass
+        if self.mode == 'BC':
+            self.packetsForSendBC.put(packet)
 
     def init_as(self, mode="BC"):
         result = self.driver.tmk_open()
@@ -278,7 +280,7 @@ if (eventData.union.bc.wResult == S_ERAO_MASK)
         result = self.driver.tmkselect(self.cardnumber)
         if result != 0:
             raise ("Ошибка tmkselect ", result)
-        if (mode == "BC"):
+        if mode == "BC":
             result = self.driver.bcreset()
             if result != 0:
                 raise ("Ошибка bcreset() ", result)
@@ -287,6 +289,6 @@ if (eventData.union.bc.wResult == S_ERAO_MASK)
 
             if result != 0:
                 raise ("Ошибка bcdefirqmode() ", result)
-            self.runnerThread = Thread(target= self.listenloopBC,daemon=True )
+            self.runnerThread = Thread(target=self.listenloopBC, daemon=True)
             self.threadRunning = True
             self.mode = mode
