@@ -7,24 +7,35 @@ from ctypes import CDLL
 libc = CDLL("libc.so.6")
 
 
+class BC_(ctypes.Structure):
+    _fields_ = [("wResult", ctypes.c_uint16),
+                ("wAW1", ctypes.c_uint16),
+                ("wAW2", ctypes.c_uint16)]
+
+
+class BCX_(ctypes.Structure):
+    _fields_ = [("wBase", ctypes.c_uint16),
+                ("wResultX", ctypes.c_uint16)]
+
+
+class RT_(ctypes.Structure):
+    _fields_ = [("wStatus", ctypes.c_uint16),
+                ("wCmd", ctypes.c_uint16)]
+
+
+class MT_(ctypes.Structure):
+    _fields_ = [("wBase", ctypes.c_uint16),
+                ("wResultX", ctypes.c_uint16)]
+
+
+class MRT_(ctypes.Structure):
+    _fields_ = [("wStatus", ctypes.c_uint16)]
+
+
+class TMK_(ctypes.Structure):
+    _fields_ = [("wRequest", ctypes.c_uint16)]
+
 class TTmkEventData(ctypes.Structure):
-    class BC_(ctypes.Structure):
-        _fields_ = [("wResult", ctypes.c_uint16),
-                    ("wAW1", ctypes.c_uint16),
-                    ("wAW2", ctypes.c_uint16)]
-    class BCX_(ctypes.Structure):
-        _fields_ = [("wBase", ctypes.c_uint16),
-                    ("wResultX", ctypes.c_uint16)]
-    class RT_(ctypes.Structure):
-        _fields_ = [("wStatus", ctypes.c_uint16),
-                    ("wCmd", ctypes.c_uint16)]
-    class MT_(ctypes.Structure):
-        _fields_ = [("wBase", ctypes.c_uint16),
-                    ("wResultX", ctypes.c_uint16)]
-    class MRT_(ctypes.Structure):
-        _fields_ = [("wStatus", ctypes.c_uint16)]
-    class TMK_(ctypes.Structure):
-        _fields_ = [("wRequest", ctypes.c_uint16)]
 
     class EventDataUnion(ctypes.Union):
         _fields_ = [("bc", BC_),
@@ -720,9 +731,8 @@ class Mil1553LinuxDriver:
         elif self.tmkCurNumber < self.tmkCnt:
             ioctl_(_hVTMK4VxD, TMK_IOCtmkgetevd, pEvD)
         else:
-            ioctl_(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCtmkgetevd, pEvD)
-        print("nInt",pEvD.nInt)
-        print("nMode",pEvD.wMode)
+            ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetevd, pEvD)
+
 
 
 

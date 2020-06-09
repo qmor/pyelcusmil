@@ -72,13 +72,27 @@ class TTmkConfigData(Structure):
 class MilPacket(Structure):
     _fields_ = [("commandWord", ctypes.c_uint16),
                 ("dataWords", ctypes.c_uint16 * 32),
-                ("answerWords", ctypes.c_uint16)]
+                ("answerWord", ctypes.c_uint16)]
 
     def __init__(self):
         self.format = None
-        self.data = None
+        self.date = datetime.datetime.now()
         self.status = None
         self.bus = 0
+        self.errorcode = ""
+    @staticmethod
+    def createCopy(packet):
+        res = MilPacket()
+        res.commandWord = packet.commandWord
+        res.answerWord = packet.answerWord
+        for i in range(32):
+            res.dataWords[i] = packet.dataWords[i]
+        res.format = packet.format
+        res.date = packet.date
+        res.status = packet.status
+        res.bus = packet.bus
+        res.errorcode = packet.errorcode
+        return res
 
     @staticmethod
     def getWordsCount(cmdWord):
@@ -151,16 +165,20 @@ class Mil1553Device:
                     Msg.date = datetime.datetime.now()
                     cmdcodeWordCount = MilPacket.getWordsCount(Msg.commandWord)
                     if Msg.format == "CC_FMT_1":
-                        self.driver.bcgetblk(1, pBuffer, cmdcodeWordCount)
-                        for i in range(32):
+                        wordcount = cmdcodeWordCount
+                        if wordcount == 0:
+                            wordcount = 32
+                        self.driver.bcgetblk(1, pBuffer, wordcount)
+                        for i in range(wordcount):
                             Msg.dataWords[i] = pBuffer[i]
-                        Msg.answerWord = self.driver.bcgetw(1 + cmdcodeWordCount)
+                        Msg.answerWord = self.driver.bcgetw(1 + wordcount)
                     elif Msg.format == "CC_FMT_2":
                         wordcount = cmdcodeWordCount
                         if wordcount == 0:
                             wordcount = 32
                         self.driver.bcgetblk(2, pBuffer, wordcount)
-                        Msg.dataWords = pBuffer.getShortArray(0, 32)
+                        for i in range(wordcount):
+                            Msg.dataWords[i] = pBuffer[i]
                         Msg.answerWord = self.driver.bcgetw(1)
 
                     elif Msg.format == "CC_FMT_4":
@@ -181,21 +199,23 @@ class Mil1553Device:
                         Msg.status = "Failed"
 
                         if eventData.union.bc.wResult == S_ERAO_MASK:
-                            errorcode = "The error in a field of the address received RW is found out"
+                            Msg.errorcode = "The error in a field of the address received RW is found out"
 
                         elif eventData.union.bc.wResult == S_MEO_MASK:
-                            errorcode = "The error of a code 'Manchester - 2' is found out at answer RT"
+                            Msg.errorcode = "The error of a code 'Manchester - 2' is found out at answer RT"
 
                         elif eventData.union.bc.wResult == S_EBC_MASK:
-                            errorcode = "The error of the echo - control over transfer BC is found out"
+                            Msg.errorcode = "The error of the echo - control over transfer BC is found out"
 
                         elif eventData.union.bc.wResult == S_TO_MASK:
-                            errorcode = "It is not received the answer from RT"
+                            Msg.errorcode = "It is not received the answer from RT"
 
                         elif eventData.union.bc.wResult == S_IB_MASK:
-                            errorcode = "The established bits in received RW are found out"
+                            Msg.errorcode = "The established bits in received RW are found out"
 
-                    # listener.msgReceived(new Mil1553Packet(Msg))
+                    for listener in self.listeners:
+                        listener(MilPacket.createCopy(Msg))
+
             if not self.packetsForSendBC.empty():
                 msg = self.packetsForSendBC.get()
                 msg.format = MilPacket.calcFormat(msg.commandWord)
@@ -252,6 +272,10 @@ class Mil1553Device:
         self.packetsForSendBC = queue.Queue()
         self.mode = None
         self.bcsent = 0
+        self.listeners = []
+
+    def addListener(self, listener):
+        self.listeners.append(listener)
 
     def sendpacket(self, packet):
         if self.mode == 'BC':
