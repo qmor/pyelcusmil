@@ -7,6 +7,7 @@ import threading
 import datetime
 import queue
 from driverLinux import TTmkEventData
+import time
 
 RT_ENABLE = 0x0000
 RT_DISABLE = 0x001F
@@ -68,7 +69,6 @@ class TTmkConfigData(Structure):
             self.nType, s, self.wPorts1, self.wPorts2, self.wIrq1, self.wIrq2, self.wIODelay)
 
 
-
 class MilPacket(Structure):
     _fields_ = [("commandWord", ctypes.c_uint16),
                 ("dataWords", ctypes.c_uint16 * 32),
@@ -80,6 +80,7 @@ class MilPacket(Structure):
         self.status = None
         self.bus = 0
         self.errorcode = ""
+
     @staticmethod
     def createCopy(packet):
         res = MilPacket()
@@ -93,6 +94,56 @@ class MilPacket(Structure):
         res.bus = packet.bus
         res.errorcode = packet.errorcode
         return res
+
+    @staticmethod
+    def createFromRaw(pBuffer, sw, statusword):
+        res = MilPacket()
+        res.date = LocalDateTime.now()
+        res.bus = 1 if (((sw & 0xffff) >> 15) == 1) else 0
+        res.commandWord = pBuffer[0]
+        # this.sw = rawPacket.sw;
+        res.errorcode = rawPacket.sw & 7
+        if res.errorcode == 0x00:
+            res.errorcode = "SX_NOERR"
+        elif res.errorcode == 0x01:
+            res.errorcode = "SX_MEO"
+        elif res.errorcode == 0x02:
+            res.errorcode = "SX_TOA"
+        elif res.errorcode == 0x03:
+            res.errorcode = "SX_TOD"
+        elif res.errorcode == 0x04:
+            res.errorcode = "SX_ELN"
+        elif res.errorcode == 0x05:
+            res.errorcode = "SX_ERAO"
+        elif res.errorcode == 0x06:
+            res.errorcode = "SX_ESYN"
+        elif res.errorcode == 0x07:
+            res.errorcode = "SX_EBC"
+
+        res.status = "RECEIVED"
+
+        if res.errorcode != "SX_NOERR":
+            res.status = "FAILED"
+
+        res.format = MilPacket.calcFormat(commandWord)
+        i = MilPacket.getWordsCount(commandWord)
+        if i == 0:
+            i = 32
+
+        if res.format == "CC_FMT_1":
+            System.arraycopy(pBuffer, 1, dataWords, 0, i)
+            res.answerWord = pBuffer[i + 1]
+        elif res.format == "CC_FMT_2":
+            res.answerWord = pBuffer[1]
+            System.arraycopy(pBuffer, 2, dataWords, 0, i)
+        elif res.format == "CC_FMT_4":
+            res.answerWord = pBuffer[1]
+        elif res.format == "CC_FMT_5":
+            res.answerWord = pBuffer[1]
+            res.dataWords[0] = pBuffer[2]
+        elif res.format == "CC_FMT_6":
+            res.answerWord = pBuffer[2]
+            res.dataWords[0] = pBuffer[1]
 
     @staticmethod
     def getWordsCount(cmdWord):
@@ -134,16 +185,53 @@ class MilPacket(Structure):
         return None
 
 
-
-
 class Mil1553Device:
+    def innerlistenloopMT(self, list):
+        while self.threadRunning:
+            if not list.empty():
+                packet = list.get()
+                for listener in self.listeners:
+                    listener(MilPacket.createCopy(packet))
+            else:
+                time.sleep(0.05)
+
+    def listenloopMT(self):
+        list = queue.Queue()
+        listenerThread = threading.Thread(target=self.innerlistenloopMT, args=(list,))
+        listenerThread.setDaemon(True)
+        listenerThread.start()
+        events = 0
+        waitingtime = 10
+        passed = False
+        eventData = TTmkEventData()
+        pBuffer = (ctypes.c_uint16 * 64)()
+        while self.threadRunning:
+            passed = False
+            events = self.driver.tmkwaitevents(1 << self.cardnumber, waitingtime)
+            if events == (1 << self.cardnumber):
+                passed = True
+            if passed:
+                with threading.Lock():
+                    self.driver.tmkselect(self.cardnumber)
+                    self.driver.tmkgetevd(eventData)
+                    if eventData.nInt == 3:
+                        pass
+                    elif eventData.nInt == 4:
+                        driver.mtdefbase(self.mtLastBase)
+                        self.mtLastBase = ((self.mtLastBase + 1) & self.mtMaxBase)
+                        sw = self.driver.mtgetsw()
+                        statusword = eventData.union.mt.wResultX
+                        self.driver.mtgetblk(0, pBuffer, 64)
+                        packet = MilPacket.createFromRaw(pBuffer, sw, statusword)
+
+                        list.add(packet);
 
     def listenloopBC(self):
 
         events = 0
         eventData = TTmkEventData()
         Msg = MilPacket()
-        pBuffer = (ctypes.c_uint16*64)()
+        pBuffer = (ctypes.c_uint16 * 64)()
         passed = True
         while self.threadRunning:
             passed = False
@@ -226,7 +314,7 @@ class Mil1553Device:
                     if msg.format == "CC_FMT_1":
                         pBuffer[0] = msg.commandWord
                         for i in range(32):
-                            pBuffer[i+1] = msg.dataWords[i]
+                            pBuffer[i + 1] = msg.dataWords[i]
 
                         self.driver.bcdefbase(0)
                         self.driver.bcputblk(0, pBuffer, 64)
@@ -273,6 +361,19 @@ class Mil1553Device:
         self.mode = None
         self.bcsent = 0
         self.listeners = []
+        self.mtLastBase = 0
+        self.mtMaxBase = 0
+        self.paused = False
+    def startmt(self, mtBase, mtCtrlCode):
+        if self.paused:
+            res = self.driver.mtstartx(mtBase, mtCtrlCode)
+            if res == 0:
+                self.paused = false;
+    def stopmt(self):
+        if not self.paused:
+            res = self.driver.mtstop()
+            if res == 0:
+                self.paused = True
 
     def addListener(self, listener):
         self.listeners.append(listener)
@@ -304,6 +405,20 @@ class Mil1553Device:
             if result != 0:
                 raise ("Ошибка bcdefirqmode() ", result)
             self.runnerThread = Thread(target=self.listenloopBC, daemon=True)
-            self.threadRunning = True
-            self.runnerThread.start()
-            self.mode = mode
+        elif mode == "MT":
+            result = self.driver.mtreset()
+            if result != 0:
+                raise ("Ошибка mtreset ", result)
+            result |= self.driver.mtdefirqmode(RT_GENER1_BL | RT_GENER2_BL)
+            if result != 0:
+                raise ("Ошибка mtdefirqmode() ", result)
+            self.mtMaxBase = self.driver.mtgetmaxbase()
+            for i in range(self.mtMaxBase):
+                self.driver.mtdefbase(i)
+                self.driver.mtdeflink(i + 1, CX_CONT | ECX_NOINT | CX_SIG)
+            self.stopmt()
+            self.runnerThread = Thread(target=self.listenloopMT, daemon=True)
+            self.startmt(0, CX_CONT | CX_NOINT | CX_NOSIG)
+        self.threadRunning = True
+        self.runnerThread.start()
+        self.mode = mode
