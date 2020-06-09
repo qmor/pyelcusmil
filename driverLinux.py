@@ -5,6 +5,42 @@ import ctypes
 from ctypes import CDLL
 
 libc = CDLL("libc.so.6")
+
+
+class TTmkEventData(ctypes.Structure):
+    class BC_(ctypes.Structure):
+        _fields_ = [("wResult", ctypes.c_uint16),
+                    ("wAW1", ctypes.c_uint16),
+                    ("wAW2", ctypes.c_uint16)]
+    class BCX_(ctypes.Structure):
+        _fields_ = [("wBase", ctypes.c_uint16),
+                    ("wResultX", ctypes.c_uint16)]
+    class RT_(ctypes.Structure):
+        _fields_ = [("wStatus", ctypes.c_uint16),
+                    ("wCmd", ctypes.c_uint16)]
+    class MT_(ctypes.Structure):
+        _fields_ = [("wBase", ctypes.c_uint16),
+                    ("wResultX", ctypes.c_uint16)]
+    class MRT_(ctypes.Structure):
+        _fields_ = [("wStatus", ctypes.c_uint16)]
+    class TMK_(ctypes.Structure):
+        _fields_ = [("wRequest", ctypes.c_uint16)]
+
+    class EventDataUnion(ctypes.Union):
+        _fields_ = [("bc", BC_),
+                    ("bcx", BCX_),
+                    ("rt", RT_),
+                    ("mt", MT_),
+                    ("mrt", MRT_),
+                    ("tmk", TMK_)]
+
+    _fields_=[("nInt",ctypes.c_uint32),
+              ("wMode",ctypes.c_uint16),
+              ("union",EventDataUnion)]
+
+
+
+
 def ioctl_(fd, cmd, arg):
     result = 0
     try:
@@ -679,69 +715,17 @@ class Mil1553LinuxDriver:
 
     def tmkgetevd(self, pEvD):
         pass
-        '''CC cc = new CC()
-if tmkCurNumber < 0 {
+        if self.tmkCurNumber < 0:
             return
-} else if tmkCurNumber < tmkCnt {
-            CLibrary.INSTANCE.ioctl(_hVTMK4VxD, TMK_IOCtmkgetevd, cc.getPointer());
-        } else {
-            CLibrary.INSTANCE.ioctl(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCtmkgetevd, cc.getPointer());
-        }
+        elif self.tmkCurNumber < self.tmkCnt:
+            ioctl_(_hVTMK4VxD, TMK_IOCtmkgetevd, pEvD)
+        else:
+            ioctl_(_ahVTMK4VxDusb[tmkCurNumber - tmkCnt], TMK_IOCtmkgetevd, pEvD)
+        print("nInt",pEvD.nInt)
+        print("nMode",pEvD.wMode)
 
-        ByteBuffer bb = cc.getPointer().getByteBuffer(0, 6 * 2)
-pEvD.nInt = bb.getInt()
-pEvD.wMode = bb.getShort()
-switch (pEvD.wMode & 0xffff) {
-        case BC_MODE:
-            switch (pEvD.nInt) {
-            case 1:
-                pEvD.union.bc.wResult = bb.getShort();
-                break
-case 2:
-                pEvD.union.bc.wResult = bb.getShort()
-pEvD.union.bc.wAW1 = bb.getShort()
-pEvD.union.bc.wAW2 = bb.getShort()
-break
-case 3:
-                pEvD.union.bcx.wResultX = bb.getShort()
-pEvD.union.bcx.wBase = bb.getShort()
-break
-case 4:
-                pEvD.union.bcx.wBase = bb.getShort()
-break
-}
-            break;
-        case MT_MODE:
-            switch (pEvD.nInt) {
-            case 3:
-                pEvD.union.mt.wResultX = bb.getShort()
-pEvD.union.mt.wBase = bb.getShort();
-                break
-case 4:
-                pEvD.union.mt.wBase = bb.getShort()
-break
-}
-            break;
-        case RT_MODE:
-            switch (pEvD.nInt) {
-            case 1:
-                pEvD.union.rt.wCmd = bb.getShort();
-                break
-case 2:
-            case 3:
-                pEvD.union.rt.wStatus = bb.getShort()
-break
-}
-            break;
-        case MRT_MODE:
-            pEvD.union.mrt.wStatus = bb.getShort()
-break
-case UNDEFINED_MODE:
-            pEvD.union.tmk.wRequest = bb.getShort()
-break
-}
-    }
-'''
+
+
 
     def tmkgetinfo(self, pConfD):
         if self.tmkCurNumber < 0:

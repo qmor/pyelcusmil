@@ -6,7 +6,7 @@ from threading import Thread
 import threading
 import datetime
 import queue
-
+from driverLinux import TTmkEventData
 
 RT_ENABLE = 0x0000
 RT_DISABLE = 0x001F
@@ -67,21 +67,6 @@ class TTmkConfigData(Structure):
         return "nType %04x\r\nszname %s\r\nwPorts1 %04x\r\nwPorts2 %04X\r\nwIrq1 %04X\r\nwIrq2 %04x\r\nwIODelay %04X\r\n" % (
             self.nType, s, self.wPorts1, self.wPorts2, self.wIrq1, self.wIrq2, self.wIODelay)
 
-
-class BC(Structure):
-    _fields_ = [("wResult", ctypes.c_uint16),
-                ("wAW1", ctypes.c_uint16),
-                ("wAW2", ctypes.c_uint16)]
-
-
-class EventDataUnion(ctypes.Union):
-    _fields_ = [("BC", BC)]
-
-
-class TTmkEventData(Structure):
-    _fields_ = [("nInt", ctypes.c_uint32),
-                ("wMode", ctypes.c_uint16),
-                ("Union", EventDataUnion)]
 
 
 class MilPacket(Structure):
