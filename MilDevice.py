@@ -132,12 +132,12 @@ class MilPacket(Structure):
 
         if res.format == "CC_FMT_1":
             for m in range(i):
-                res.dataWords[m] = pBuffer[m+1]
+                res.dataWords[m] = pBuffer[m + 1]
             res.answerWord = pBuffer[i + 1]
         elif res.format == "CC_FMT_2":
             res.answerWord = pBuffer[1]
             for m in range(i):
-                res.dataWords[m] = pBuffer[2+m]
+                res.dataWords[m] = pBuffer[2 + m]
         elif res.format == "CC_FMT_4":
             res.answerWord = pBuffer[1]
         elif res.format == "CC_FMT_5":
@@ -147,6 +147,7 @@ class MilPacket(Structure):
             res.answerWord = pBuffer[2]
             res.dataWords[0] = pBuffer[1]
         return res
+
     @staticmethod
     def getWordsCount(cmdWord):
         return cmdWord & 0x1f
@@ -196,6 +197,76 @@ class Mil1553Device:
                     listener(MilPacket.createCopy(packet))
             else:
                 time.sleep(0.05)
+
+    def listenloopRT(self):
+        eventData = TTmkEventData()
+        pBuffer = (ctypes.c_uint16 * 64)()
+        events = 0
+        waitingtime = 10
+        while self.threadRunning:
+            passed = False
+            events = self.driver.tmkwaitevents(1 << self.cardnumber, waitingtime)
+            if events == (1 << self.cardnumber):
+                passed = True
+            if passed:
+                with threading.Lock():
+                    self.driver.tmkselect(self.cardnumber)
+                    self.driver.tmkgetevd(eventData)
+                    Msg = MilPacket()
+                    if eventData.nInt == 1:  # rtIntCmd
+                        Msg.answerWord = 0
+                        Msg.commandWord = eventData.union.rt.wCmd
+                        for i in range(32):
+                            Msg.dataWords[i] = 0
+                        Msg.dataWords[0] = self.driver.rtgetcmddata(Msg.commandWord & 31)
+                        Msg.status = "RECEIVED"
+
+                        answElcus = self.getDriver().rtgetanswbits()
+                        if (answElcus & 0x1) == Elcus1553Device.ANS_BIT_SREQ:
+                            Msg.answerWord |= 1 << 8
+                        if (answElcus & 0x2) == Elcus1553Device.ANS_BIT_BUSY:
+                            Msg.answerWord |= 1 << 3
+                        if (answElcus & 0x4) == Elcus1553Device.ANS_BIT_SSFL:
+                            Msg.answerWord |= 1 << 2
+                        if (answElcus & 0x8) == Elcus1553Device.ANS_BIT_RTFL:
+                            Msg.answerWord |= 1
+                        if (answElcus & 0x10) == Elcus1553Device.ANS_BIT_DNBA:
+                            Msg.answerWord |= 1 << 1
+
+                        for listener in self.listeners:
+                            listener(MilPacket.createCopy(packet))
+
+                    elif eventData.nInt == 2:  # rtIntErr
+                        raise Exception("Error in listenloopRT")
+
+                    elif eventData.nInt == 3:  # rtIntData
+                        Msg.commandWord = eventData.union.rt.wStatus
+                        self.driver.rtdefsubaddr(
+                            RT_RECEIVE if (MilPacket.getRTRBit(Msg.commandWord == 0)) else RT_TRANSMIT,
+                            MilPacket.getSubAddress(Msg.commandWord))
+                        len = MilPacket.getWordsCount(Msg.commandWord)
+                        if len == 0:
+                            len = 32
+
+                        driver.rtgetblk(0, pBuffer, len)
+                        for i in range(len):
+                            Msg.dataWords[i] = pBuffer[i]
+                        Msg.status = "RECEIVED"
+
+                        answElcus = self.getDriver().rtgetanswbits()
+                        if (answElcus & 0x1) == Elcus1553Device.ANS_BIT_SREQ:
+                            Msg.answerWord |= 1 << 8
+                        if (answElcus & 0x2) == Elcus1553Device.ANS_BIT_BUSY:
+                            Msg.answerWord |= 1 << 3
+                        if (answElcus & 0x4) == Elcus1553Device.ANS_BIT_SSFL:
+                            Msg.answerWord |= 1 << 2
+                        if (answElcus & 0x8) == Elcus1553Device.ANS_BIT_RTFL:
+                            Msg.answerWord |= 1
+                        if (answElcus & 0x10) == Elcus1553Device.ANS_BIT_DNBA:
+                            Msg.answerWord |= 1 << 1
+
+                        for listener in self.listeners:
+                            listener(MilPacket.createCopy(packet))
 
     def listenloopMT(self):
         list = queue.Queue()
@@ -366,11 +437,14 @@ class Mil1553Device:
         self.mtLastBase = 0
         self.mtMaxBase = 0
         self.paused = False
+        self.rtaddress = 0
+
     def startmt(self, mtBase, mtCtrlCode):
         if self.paused:
             res = self.driver.mtstartx(mtBase, mtCtrlCode)
             if res == 0:
                 self.paused = False
+
     def stopmt(self):
         if not self.paused:
             res = self.driver.mtstop()
@@ -384,7 +458,7 @@ class Mil1553Device:
         if self.mode == 'BC':
             self.packetsForSendBC.put(packet)
 
-    def init_as(self, mode="BC"):
+    def init_as(self, mode="BC", rtaddress=0):
         result = self.driver.tmk_open()
         if result != 0:
             raise ("Ошибка TmkOpen ", result)
@@ -421,6 +495,21 @@ class Mil1553Device:
             self.stopmt()
             self.runnerThread = Thread(target=self.listenloopMT, daemon=True)
             self.startmt(0, CX_CONT | CX_NOINT | CX_NOSIG)
+        elif mode == "RT":
+            result = self.driver.rtreset()
+            if result != 0:
+                raise ("Ошибка rtreset ", result)
+            result = self.driver.rtdefaddress(rtaddress)
+            if result != 0:
+                raise ("Ошибка rtdefaddress ", result)
+            self.rtaddress = rtaddress
+            result = self.driver.rtdefmode(0)
+            result |= self.driver.rtdefirqmode(0)
+            self.driver.rtenable(RT_DISABLE)
+            runnerThread = Thread(target=self.listenloopRT, daemon=True)
+
+        else:
+            raise ("Unknown mode ", mode)
         self.threadRunning = True
         self.runnerThread.start()
         self.mode = mode
