@@ -506,7 +506,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtbusy)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtbusy,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtbusy)
 
     def rtgetcmddata(self, rtBusCommand):

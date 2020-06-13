@@ -467,7 +467,7 @@ class Mil1553Device:
         with threading.Lock():
             result = self.driver.tmkselect(self.cardnumber)
             if result != 0:
-                raise Exception(this, "Ошибка tmkselect в sendPacketRT ", result)
+                raise Exception("Ошибка tmkselect в sendPacketRT ", result)
             subaddressMode = MilPacket.getSubAddress(packet.commandWord)
             rtrBit = MilPacket.getRTRBit(packet.commandWord)
             wordcountModeCode = MilPacket.getWordsCount(packet.commandWord)
@@ -476,9 +476,9 @@ class Mil1553Device:
                     if wordcountModeCode == 0:
                         wordcountModeCode = 32
                     self.driver.rtdefsubaddr(RT_TRANSMIT, subaddressMode)
-                    while driver.rtbusy() == 1:
+                    while self.driver.rtbusy() == 1:
                         time.sleep(0.01)
-                    driver.rtputblk(0, packet.dataWords, wordcountModeCode)
+                    self.driver.rtputblk(0, packet.dataWords, wordcountModeCode)
                 else:  # if Mode
                     self.driver.rtputcmddata((packet.commandWord & (1 << 10) | 31),
                                              packet.dataWords[0])  # first  dataword is   for CMD data
