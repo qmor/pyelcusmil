@@ -438,6 +438,7 @@ class Mil1553Device:
         self.mtMaxBase = 0
         self.paused = False
         self.rtaddress = 0
+        self.threadRunning = False
         self.runnerThread = None
 
     def startmt(self, mtBase, mtCtrlCode):
@@ -514,3 +515,36 @@ class Mil1553Device:
         self.threadRunning = True
         self.runnerThread.start()
         self.mode = mode
+
+    def isEnabled(self):
+        isEnbl = self.driver.rtenable(RT_GET_ENABLE)
+        return True if (isEnbl == RT_ENABLE) else False
+
+    def setPause(self, pause):
+        if self.mode == "RT":
+            with threading.Lock():
+                result = self.driver.tmkselect(self.cardnumber)
+                if result != 0:
+                    raise Exception("Ошибка tmkselect в функции setPause() ", result)
+
+            if self.isEnabled() == pause:
+                result = driver.rtenable(RT_DISABLE if isEnabled() else RT_ENABLE)
+                if result != 0:
+                    raise Exception("Ошибка rtenable в функции setPause() ", result)
+
+            elif self.mode == "MT":
+                with threading.Lock():
+                    result = self.driver.tmkselect(self.cardnumber)
+                    if result != 0:
+                        raise Exception("Ошибка tmkselect в функции setPause() ", result)
+
+                    result = stopmt() if pause else startmt(self.mtLastBase, (CX_CONT | CX_NOINT | CX_NOSIG))
+
+                    if result != 0:
+                        raise Exception("Ошибка startmt/stopmt в функции setPause() ", result)
+
+            if pause:
+                self.threadRunning = False
+                self.runnerThread.join()
+            elif not self.threadRunning:
+                self.runnerThread = Thread(target=self.listenloopMT, daemon=True)
