@@ -832,9 +832,8 @@ class Mil1553LinuxDriver:
 
     def rtgetblk(self, rtAddr, pcBuffer, cwLength):
         c = (ctypes.c_void_p * 2)()
-        c[0].value = rtAddr | cwLength << 16
-        c[1].value = 0
-        c[2].value = ctypes.addressof(pcBuffer)
+        c[0] = rtAddr | cwLength << 16
+        c[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -852,8 +851,8 @@ class Mil1553LinuxDriver:
 
     def rtputblk(self, rtAddr, pcBuffer, cwLength):
         c = (ctypes.c_void_p * 2)()
-        c[0].value = rtAddr | cwLength << 16
-        c[1].value = ctypes.addressof(pcBuffer)
+        c[0] = rtAddr | cwLength << 16
+        c[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -1114,5 +1113,5 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetanswbits)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetanswbits,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetanswbits)

@@ -14,5 +14,6 @@ def receiverListener(packet):
 device = Mil1553Device(cardnumber=4)
 device.init_as(mode="RT", rtaddress=1)
 device.addListener(receiverListener)
+device.setPause(False)
 while True:
     time.sleep(1)

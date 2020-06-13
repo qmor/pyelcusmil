@@ -9,6 +9,18 @@ import queue
 from driverLinux import TTmkEventData
 import time
 
+
+ANS_BIT_SREQ = 0x01
+
+ANS_BIT_BUSY = 0x02
+
+ANS_BIT_SSFL = 0x04
+
+ANS_BIT_RTFL = 0x08
+
+ANS_BIT_DNBA = 0x10
+
+
 RT_ENABLE = 0x0000
 RT_DISABLE = 0x001F
 RT_GET_ENABLE = 0xFFFF
@@ -201,7 +213,6 @@ class Mil1553Device:
     def listenloopRT(self):
         eventData = TTmkEventData()
         pBuffer = (ctypes.c_uint16 * 64)()
-        events = 0
         waitingtime = 10
         while self.threadRunning:
             passed = False
@@ -216,33 +227,35 @@ class Mil1553Device:
                     if eventData.nInt == 1:  # rtIntCmd
                         Msg.answerWord = 0
                         Msg.commandWord = eventData.union.rt.wCmd
+                        Msg.format = MilPacket.calcFormat(Msg.commandWord)
                         for i in range(32):
                             Msg.dataWords[i] = 0
                         Msg.dataWords[0] = self.driver.rtgetcmddata(Msg.commandWord & 31)
                         Msg.status = "RECEIVED"
 
-                        answElcus = self.getDriver().rtgetanswbits()
-                        if (answElcus & 0x1) == Elcus1553Device.ANS_BIT_SREQ:
+                        answElcus = self.driver.rtgetanswbits()
+                        if (answElcus & 0x1) == ANS_BIT_SREQ:
                             Msg.answerWord |= 1 << 8
-                        if (answElcus & 0x2) == Elcus1553Device.ANS_BIT_BUSY:
+                        if (answElcus & 0x2) == ANS_BIT_BUSY:
                             Msg.answerWord |= 1 << 3
-                        if (answElcus & 0x4) == Elcus1553Device.ANS_BIT_SSFL:
+                        if (answElcus & 0x4) == ANS_BIT_SSFL:
                             Msg.answerWord |= 1 << 2
-                        if (answElcus & 0x8) == Elcus1553Device.ANS_BIT_RTFL:
+                        if (answElcus & 0x8) == ANS_BIT_RTFL:
                             Msg.answerWord |= 1
-                        if (answElcus & 0x10) == Elcus1553Device.ANS_BIT_DNBA:
+                        if (answElcus & 0x10) == ANS_BIT_DNBA:
                             Msg.answerWord |= 1 << 1
 
                         for listener in self.listeners:
-                            listener(MilPacket.createCopy(packet))
+                            listener(MilPacket.createCopy(Msg))
 
                     elif eventData.nInt == 2:  # rtIntErr
                         raise Exception("Error in listenloopRT")
 
                     elif eventData.nInt == 3:  # rtIntData
                         Msg.commandWord = eventData.union.rt.wStatus
+                        Msg.format = MilPacket.calcFormat(Msg.commandWord)
                         self.driver.rtdefsubaddr(
-                            RT_RECEIVE if (MilPacket.getRTRBit(Msg.commandWord == 0)) else RT_TRANSMIT,
+                            RT_RECEIVE if (MilPacket.getRTRBit(Msg.commandWord) == 0) else RT_TRANSMIT,
                             MilPacket.getSubAddress(Msg.commandWord))
                         len = MilPacket.getWordsCount(Msg.commandWord)
                         if len == 0:
@@ -253,29 +266,27 @@ class Mil1553Device:
                             Msg.dataWords[i] = pBuffer[i]
                         Msg.status = "RECEIVED"
 
-                        answElcus = self.getDriver().rtgetanswbits()
-                        if (answElcus & 0x1) == Elcus1553Device.ANS_BIT_SREQ:
+                        answElcus = self.driver.rtgetanswbits()
+                        if (answElcus & 0x1) == ANS_BIT_SREQ:
                             Msg.answerWord |= 1 << 8
-                        if (answElcus & 0x2) == Elcus1553Device.ANS_BIT_BUSY:
+                        if (answElcus & 0x2) == ANS_BIT_BUSY:
                             Msg.answerWord |= 1 << 3
-                        if (answElcus & 0x4) == Elcus1553Device.ANS_BIT_SSFL:
+                        if (answElcus & 0x4) == ANS_BIT_SSFL:
                             Msg.answerWord |= 1 << 2
-                        if (answElcus & 0x8) == Elcus1553Device.ANS_BIT_RTFL:
+                        if (answElcus & 0x8) == ANS_BIT_RTFL:
                             Msg.answerWord |= 1
-                        if (answElcus & 0x10) == Elcus1553Device.ANS_BIT_DNBA:
+                        if (answElcus & 0x10) == ANS_BIT_DNBA:
                             Msg.answerWord |= 1 << 1
 
                         for listener in self.listeners:
-                            listener(MilPacket.createCopy(packet))
+                            listener(MilPacket.createCopy(Msg))
 
     def listenloopMT(self):
         list = queue.Queue()
         listenerThread = threading.Thread(target=self.innerlistenloopMT, args=(list,))
         listenerThread.setDaemon(True)
         listenerThread.start()
-        events = 0
         waitingtime = 10
-        passed = False
         eventData = TTmkEventData()
         pBuffer = (ctypes.c_uint16 * 64)()
         while self.threadRunning:
@@ -301,11 +312,9 @@ class Mil1553Device:
 
     def listenloopBC(self):
 
-        events = 0
         eventData = TTmkEventData()
         Msg = MilPacket()
         pBuffer = (ctypes.c_uint16 * 64)()
-        passed = True
         while self.threadRunning:
             passed = False
             events = self.driver.tmkwaitevents(1 << self.cardnumber, 100)
@@ -528,7 +537,7 @@ class Mil1553Device:
                     raise Exception("Ошибка tmkselect в функции setPause() ", result)
 
             if self.isEnabled() == pause:
-                result = driver.rtenable(RT_DISABLE if isEnabled() else RT_ENABLE)
+                result = self.driver.rtenable(RT_DISABLE if self.isEnabled() else RT_ENABLE)
                 if result != 0:
                     raise Exception("Ошибка rtenable в функции setPause() ", result)
 
@@ -538,7 +547,7 @@ class Mil1553Device:
                     if result != 0:
                         raise Exception("Ошибка tmkselect в функции setPause() ", result)
 
-                    result = stopmt() if pause else startmt(self.mtLastBase, (CX_CONT | CX_NOINT | CX_NOSIG))
+                    result = self.stopmt() if pause else self.startmt(self.mtLastBase, (CX_CONT | CX_NOINT | CX_NOSIG))
 
                     if result != 0:
                         raise Exception("Ошибка startmt/stopmt в функции setPause() ", result)
