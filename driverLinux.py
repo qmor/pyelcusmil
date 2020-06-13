@@ -970,7 +970,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtreset,0)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtreset)
 
     def rtdefirqmode(self, rtIrqMode):

@@ -248,7 +248,7 @@ class Mil1553Device:
                         if len == 0:
                             len = 32
 
-                        driver.rtgetblk(0, pBuffer, len)
+                        self.driver.rtgetblk(0, pBuffer, len)
                         for i in range(len):
                             Msg.dataWords[i] = pBuffer[i]
                         Msg.status = "RECEIVED"
@@ -438,6 +438,7 @@ class Mil1553Device:
         self.mtMaxBase = 0
         self.paused = False
         self.rtaddress = 0
+        self.runnerThread = None
 
     def startmt(self, mtBase, mtCtrlCode):
         if self.paused:
@@ -506,7 +507,7 @@ class Mil1553Device:
             result = self.driver.rtdefmode(0)
             result |= self.driver.rtdefirqmode(0)
             self.driver.rtenable(RT_DISABLE)
-            runnerThread = Thread(target=self.listenloopRT, daemon=True)
+            self.runnerThread = Thread(target=self.listenloopRT, daemon=True)
 
         else:
             raise ("Unknown mode ", mode)
