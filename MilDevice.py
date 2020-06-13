@@ -9,7 +9,6 @@ import queue
 from driverLinux import TTmkEventData
 import time
 
-
 ANS_BIT_SREQ = 0x01
 
 ANS_BIT_BUSY = 0x02
@@ -19,7 +18,6 @@ ANS_BIT_SSFL = 0x04
 ANS_BIT_RTFL = 0x08
 
 ANS_BIT_DNBA = 0x10
-
 
 RT_ENABLE = 0x0000
 RT_DISABLE = 0x001F
@@ -465,9 +463,31 @@ class Mil1553Device:
     def addListener(self, listener):
         self.listeners.append(listener)
 
+    def sendPacketRT(self, packet):
+        with threading.Lock():
+            result = self.driver.tmkselect(self.cardnumber)
+            if result != 0:
+                raise Exception(this, "Ошибка tmkselect в sendPacketRT ", result)
+            subaddressMode = MilPacket.getSubAddress(packet.commandWord)
+            rtrBit = MilPacket.getRTRBit(packet.commandWord)
+            wordcountModeCode = MilPacket.getWordsCount(packet.commandWord)
+            if rtrBit == 1:
+                if subaddressMode != 0 and subaddressMode != 31:
+                    if wordcountModeCode == 0:
+                        wordcountModeCode = 32
+                    self.driver.rtdefsubaddr(RT_TRANSMIT, subaddressMode)
+                    while driver.rtbusy() == 1:
+                        time.sleep(0.01)
+                    driver.rtputblk(0, packet.dataWords, wordcountModeCode)
+                else:  # if Mode
+                    self.driver.rtputcmddata((packet.commandWord & (1 << 10) | 31),
+                                             packet.dataWords[0])  # first  dataword is   for CMD data
+
     def sendpacket(self, packet):
         if self.mode == 'BC':
             self.packetsForSendBC.put(packet)
+        elif self.mode == "RT":
+            self.sendPacketRT(packet)
 
     def init_as(self, mode="BC", rtaddress=0):
         result = self.driver.tmk_open()
