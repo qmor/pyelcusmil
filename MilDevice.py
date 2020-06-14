@@ -22,58 +22,58 @@ except:
     from TTmkEventData import TTmkEventData
 import time
 
-ANS_BIT_SREQ = 0x01
 
-ANS_BIT_BUSY = 0x02
+class ElcusAnsBits:
+    ANS_BIT_SREQ = 0x01
+    ANS_BIT_BUSY = 0x02
+    ANS_BIT_SSFL = 0x04
+    ANS_BIT_RTFL = 0x08
+    ANS_BIT_DNBA = 0x10
 
-ANS_BIT_SSFL = 0x04
 
-ANS_BIT_RTFL = 0x08
-
-ANS_BIT_DNBA = 0x10
-
-RT_ENABLE = 0x0000
-RT_DISABLE = 0x001F
-RT_GET_ENABLE = 0xFFFF
-CX_NOSIG = 0x0000
-CX_SIG = 0x8000
-CX_INT = 0x0000
-CX_NOINT = 0x0020
-CX_CONT = 0x0010
-RT_TRANSMIT = 0x0400
-RT_RECEIVE = 0x0000
-RT_ERROR_MASK = 0x4000
-S_ERAO_MASK = 0x01
-S_MEO_MASK = 0x02
-S_IB_MASK = 0x04
-S_TO_MASK = 0x08
-S_EM_MASK = 0x10
-S_EBC_MASK = 0x20
-S_DI_MASK = 0x40
-S_ELN_MASK = 0x80
-S_G1_MASK = 0x1000
-S_G2_MASK = 0x2000
-DATA_BC_RT = 0x00
-DATA_BC_RT_BRCST = 0x08
-DATA_RT_BC = 0x01
-DATA_RT_RT = 0x02
-DATA_RT_RT_BRCST = 0x0A
-CTRL_C_A = 0x03
-CTRL_C_BRCST = 0x0B
-CTRL_CD_A = 0x04
-CTRL_CD_BRCST = 0x0C
-CTRL_C_AD = 0x05
-RT_HBIT_MODE = 0x0001
-RT_FLAG_MODE = 0x0002
-RT_BRCST_MODE = 0x0004
-RT_DATA_BL = 0x2000
-RT_GENER1_BL = 0x0004
-RT_GENER2_BL = 0x4000
-BC_GENER1_BL = 0x0004
-BC_GENER2_BL = 0x4000
-MT_GENER1_BL = 0x0004
-MT_GENER2_BL = 0x4000
-TMK_IRQ_OFF = 0x8000
+class ElcusConst:
+    RT_ENABLE = 0x0000
+    RT_DISABLE = 0x001F
+    RT_GET_ENABLE = 0xFFFF
+    CX_NOSIG = 0x0000
+    CX_SIG = 0x8000
+    CX_INT = 0x0000
+    CX_NOINT = 0x0020
+    CX_CONT = 0x0010
+    RT_TRANSMIT = 0x0400
+    RT_RECEIVE = 0x0000
+    RT_ERROR_MASK = 0x4000
+    S_ERAO_MASK = 0x01
+    S_MEO_MASK = 0x02
+    S_IB_MASK = 0x04
+    S_TO_MASK = 0x08
+    S_EM_MASK = 0x10
+    S_EBC_MASK = 0x20
+    S_DI_MASK = 0x40
+    S_ELN_MASK = 0x80
+    S_G1_MASK = 0x1000
+    S_G2_MASK = 0x2000
+    DATA_BC_RT = 0x00
+    DATA_BC_RT_BRCST = 0x08
+    DATA_RT_BC = 0x01
+    DATA_RT_RT = 0x02
+    DATA_RT_RT_BRCST = 0x0A
+    CTRL_C_A = 0x03
+    CTRL_C_BRCST = 0x0B
+    CTRL_CD_A = 0x04
+    CTRL_CD_BRCST = 0x0C
+    CTRL_C_AD = 0x05
+    RT_HBIT_MODE = 0x0001
+    RT_FLAG_MODE = 0x0002
+    RT_BRCST_MODE = 0x0004
+    RT_DATA_BL = 0x2000
+    RT_GENER1_BL = 0x0004
+    RT_GENER2_BL = 0x4000
+    BC_GENER1_BL = 0x0004
+    BC_GENER2_BL = 0x4000
+    MT_GENER1_BL = 0x0004
+    MT_GENER2_BL = 0x4000
+    TMK_IRQ_OFF = 0x8000
 
 
 class MilErrorCodes(Enum):
@@ -221,6 +221,10 @@ class MilPacket(Structure):
         return (cmdWord & 0xffff) >> 11
 
     @staticmethod
+    def makeCW(a, rtr, sa, wc):
+        return a << 11 | rtr << 10 | sa << 5 | wc
+
+    @staticmethod
     def calcFormat(cmdword):
         rtrbit = MilPacket.getRTRBit(cmdword)
         subaddress = MilPacket.getSubAddress(cmdword)
@@ -278,15 +282,15 @@ class Mil1553Device:
                         Msg.status = MilPacketStatus.RECEIVED
 
                         answElcus = self.driver.rtgetanswbits()
-                        if (answElcus & 0x1) == ANS_BIT_SREQ:
+                        if (answElcus & 0x1) == ElcusAnsBits.ANS_BIT_SREQ:
                             Msg.answerWord |= 1 << 8
-                        if (answElcus & 0x2) == ANS_BIT_BUSY:
+                        if (answElcus & 0x2) == ElcusAnsBits.ANS_BIT_BUSY:
                             Msg.answerWord |= 1 << 3
-                        if (answElcus & 0x4) == ANS_BIT_SSFL:
+                        if (answElcus & 0x4) == ElcusAnsBits.ANS_BIT_SSFL:
                             Msg.answerWord |= 1 << 2
-                        if (answElcus & 0x8) == ANS_BIT_RTFL:
+                        if (answElcus & 0x8) == ElcusAnsBits.ANS_BIT_RTFL:
                             Msg.answerWord |= 1
-                        if (answElcus & 0x10) == ANS_BIT_DNBA:
+                        if (answElcus & 0x10) == ElcusAnsBits.ANS_BIT_DNBA:
                             Msg.answerWord |= 1 << 1
 
                         for listener in self.listeners:
@@ -299,35 +303,36 @@ class Mil1553Device:
                         Msg.commandWord = eventData.union.rt.wStatus
                         Msg.format = MilPacket.calcFormat(Msg.commandWord)
                         self.driver.rtdefsubaddr(
-                            RT_RECEIVE if (MilPacket.getRTRBit(Msg.commandWord) == 0) else RT_TRANSMIT,
+                            ElcusConst.RT_RECEIVE if (
+                                        MilPacket.getRTRBit(Msg.commandWord) == 0) else ElcusConst.RT_TRANSMIT,
                             MilPacket.getSubAddress(Msg.commandWord))
-                        len = MilPacket.getWordsCount(Msg.commandWord)
-                        if len == 0:
-                            len = 32
+                        ln = MilPacket.getWordsCount(Msg.commandWord)
+                        if ln == 0:
+                            ln = 32
 
-                        self.driver.rtgetblk(0, pBuffer, len)
-                        for i in range(len):
+                        self.driver.rtgetblk(0, pBuffer, ln)
+                        for i in range(ln):
                             Msg.dataWords[i] = pBuffer[i]
                         Msg.status = MilPacketStatus.RECEIVED
 
                         answElcus = self.driver.rtgetanswbits()
-                        if (answElcus & 0x1) == ANS_BIT_SREQ:
+                        if (answElcus & 0x1) == ElcusAnsBits.ANS_BIT_SREQ:
                             Msg.answerWord |= 1 << 8
-                        if (answElcus & 0x2) == ANS_BIT_BUSY:
+                        if (answElcus & 0x2) == ElcusAnsBits.ANS_BIT_BUSY:
                             Msg.answerWord |= 1 << 3
-                        if (answElcus & 0x4) == ANS_BIT_SSFL:
+                        if (answElcus & 0x4) == ElcusAnsBits.ANS_BIT_SSFL:
                             Msg.answerWord |= 1 << 2
-                        if (answElcus & 0x8) == ANS_BIT_RTFL:
+                        if (answElcus & 0x8) == ElcusAnsBits.ANS_BIT_RTFL:
                             Msg.answerWord |= 1
-                        if (answElcus & 0x10) == ANS_BIT_DNBA:
+                        if (answElcus & 0x10) == ElcusAnsBits.ANS_BIT_DNBA:
                             Msg.answerWord |= 1 << 1
 
                         for listener in self.listeners:
                             listener(MilPacket.createCopy(Msg))
 
     def listenloopMT(self):
-        list = queue.Queue()
-        listenerThread = threading.Thread(target=self.innerlistenloopMT, args=(list,))
+        lst = queue.Queue()
+        listenerThread = threading.Thread(target=self.innerlistenloopMT, args=(lst,))
         listenerThread.setDaemon(True)
         listenerThread.start()
         waitingtime = 10
@@ -352,7 +357,7 @@ class Mil1553Device:
                         self.driver.mtgetblk(0, pBuffer, 64)
                         packet = MilPacket.createFromRaw(pBuffer, sw, statusword)
 
-                        list.put(MilPacket.createCopy(packet))
+                        lst.put(MilPacket.createCopy(packet))
 
     def listenloopBC(self):
 
@@ -411,19 +416,19 @@ class Mil1553Device:
                     if eventData.nInt == 2:
                         Msg.status = MilPacketStatus.FAILED
 
-                        if eventData.union.bc.wResult == S_ERAO_MASK:
+                        if eventData.union.bc.wResult == ElcusConst.S_ERAO_MASK:
                             Msg.errorcode = "The error in a field of the address received RW is found out"
 
-                        elif eventData.union.bc.wResult == S_MEO_MASK:
+                        elif eventData.union.bc.wResult == ElcusConst.S_MEO_MASK:
                             Msg.errorcode = "The error of a code 'Manchester - 2' is found out at answer RT"
 
-                        elif eventData.union.bc.wResult == S_EBC_MASK:
+                        elif eventData.union.bc.wResult == ElcusConst.S_EBC_MASK:
                             Msg.errorcode = "The error of the echo - control over transfer BC is found out"
 
-                        elif eventData.union.bc.wResult == S_TO_MASK:
+                        elif eventData.union.bc.wResult == ElcusConst.S_TO_MASK:
                             Msg.errorcode = "It is not received the answer from RT"
 
-                        elif eventData.union.bc.wResult == S_IB_MASK:
+                        elif eventData.union.bc.wResult == ElcusConst.S_IB_MASK:
                             Msg.errorcode = "The established bits in received RW are found out"
 
                     for listener in self.listeners:
@@ -444,7 +449,7 @@ class Mil1553Device:
                         self.driver.bcdefbase(0)
                         self.driver.bcputblk(0, pBuffer, 64)
                         self.driver.bcdefbus(msg.bus)
-                        self.driver.bcstart(0, DATA_BC_RT)
+                        self.driver.bcstart(0, ElcusConst.DATA_BC_RT)
                         self.bcsent += 1
                         msg.status = MilPacketStatus.SENT
                     elif msg.format == MilPacketFormat.CC_FMT_2:
@@ -455,7 +460,7 @@ class Mil1553Device:
                         res = self.driver.bcdefbus(msg.bus)
                         if res != 0:
                             print("bcdefbus: ", res)
-                        res = self.driver.bcstart(0, DATA_RT_BC)
+                        res = self.driver.bcstart(0, ElcusConst.DATA_RT_BC)
                         if res != 0:
                             print("bcstart: " + res)
                         self.bcsent += 1
@@ -519,7 +524,7 @@ class Mil1553Device:
                 if subaddressMode != 0 and subaddressMode != 31:
                     if wordcountModeCode == 0:
                         wordcountModeCode = 32
-                    self.driver.rtdefsubaddr(RT_TRANSMIT, subaddressMode)
+                    self.driver.rtdefsubaddr(ElcusConst.RT_TRANSMIT, subaddressMode)
                     while self.driver.rtbusy() == 1:
                         time.sleep(0.01)
                     self.driver.rtputblk(0, packet.dataWords, wordcountModeCode)
@@ -551,7 +556,7 @@ class Mil1553Device:
             if result != 0:
                 raise ("Ошибка bcreset() ", result)
 
-            result |= self.driver.bcdefirqmode(RT_GENER1_BL | RT_GENER2_BL)
+            result |= self.driver.bcdefirqmode(ElcusConst.RT_GENER1_BL | ElcusConst.RT_GENER2_BL)
 
             if result != 0:
                 raise ("Ошибка bcdefirqmode() ", result)
@@ -560,16 +565,16 @@ class Mil1553Device:
             result = self.driver.mtreset()
             if result != 0:
                 raise ("Ошибка mtreset ", result)
-            result |= self.driver.mtdefirqmode(RT_GENER1_BL | RT_GENER2_BL)
+            result |= self.driver.mtdefirqmode(ElcusConst.RT_GENER1_BL | ElcusConst.RT_GENER2_BL)
             if result != 0:
                 raise ("Ошибка mtdefirqmode() ", result)
             self.mtMaxBase = self.driver.mtgetmaxbase()
             for i in range(self.mtMaxBase):
                 self.driver.mtdefbase(i)
-                self.driver.mtdeflink(i + 1, CX_CONT | CX_NOINT | CX_SIG)
+                self.driver.mtdeflink(i + 1, ElcusConst.CX_CONT | ElcusConst.CX_NOINT | ElcusConst.CX_SIG)
             self.stopmt()
             self.runnerThread = Thread(target=self.listenloopMT, daemon=True)
-            self.startmt(0, CX_CONT | CX_NOINT | CX_NOSIG)
+            self.startmt(0, ElcusConst.CX_CONT | ElcusConst.CX_NOINT | ElcusConst.CX_NOSIG)
         elif mode == "RT":
             result = self.driver.rtreset()
             if result != 0:
@@ -580,7 +585,7 @@ class Mil1553Device:
             self.rtaddress = rtaddress
             result = self.driver.rtdefmode(0)
             result |= self.driver.rtdefirqmode(0)
-            self.driver.rtenable(RT_DISABLE)
+            self.driver.rtenable(ElcusConst.RT_DISABLE)
             self.runnerThread = Thread(target=self.listenloopRT, daemon=True)
 
         else:
@@ -590,8 +595,8 @@ class Mil1553Device:
         self.mode = mode
 
     def isEnabled(self):
-        isEnbl = self.driver.rtenable(RT_GET_ENABLE)
-        return True if (isEnbl == RT_ENABLE) else False
+        isEnbl = self.driver.rtenable(ElcusConst.RT_GET_ENABLE)
+        return True if (isEnbl == ElcusConst.RT_ENABLE) else False
 
     def setPause(self, pause):
         if self.mode == "RT":
@@ -601,7 +606,7 @@ class Mil1553Device:
                     raise Exception("Ошибка tmkselect в функции setPause() ", result)
 
             if self.isEnabled() == pause:
-                result = self.driver.rtenable(RT_DISABLE if self.isEnabled() else RT_ENABLE)
+                result = self.driver.rtenable(ElcusConst.RT_DISABLE if self.isEnabled() else ElcusConst.RT_ENABLE)
                 if result != 0:
                     raise Exception("Ошибка rtenable в функции setPause() ", result)
 
@@ -611,7 +616,8 @@ class Mil1553Device:
                     if result != 0:
                         raise Exception("Ошибка tmkselect в функции setPause() ", result)
 
-                    result = self.stopmt() if pause else self.startmt(self.mtLastBase, (CX_CONT | CX_NOINT | CX_NOSIG))
+                    result = self.stopmt() if pause else self.startmt(self.mtLastBase, (
+                                ElcusConst.CX_CONT | ElcusConst.CX_NOINT | ElcusConst.CX_NOSIG))
 
                     if result != 0:
                         raise Exception("Ошибка startmt/stopmt в функции setPause() ", result)

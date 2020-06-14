@@ -10,18 +10,16 @@ from ctypes import CDLL
 libc = CDLL("libc.so.6")
 
 
-
-
-
-
-def ioctrext(fd,cmd,arg):
+def ioctrext(fd, cmd, arg):
     result = libc.ioctl(fd, cmd, arg)
-    return  result
+    return result
+
+
 def ioctl_(fd, cmd, arg):
     result = 0
     try:
         result = fcntl.ioctl(fd, cmd, arg)
-        #result = libc.ioctl(fd, cmd, arg)
+        # result = libc.ioctl(fd, cmd, arg)
     except IOError as ex:
         result = ex.errno
     return result
@@ -34,6 +32,7 @@ def open_(name, mode):
     except Exception as ex:
         pass
     return res
+
 
 
 TMK_VERSION_MIN = 0x0403
@@ -469,8 +468,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtbusy,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtbusy)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtbusy, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtbusy, 0)
 
     def rtgetcmddata(self, rtBusCommand):
         if self.tmkCurNumber < 0:
@@ -501,7 +500,7 @@ class Mil1553LinuxDriver:
             Mil1553LinuxDriver._hVTMK4VxD = 0
             return VTMK_BAD_VERSION
         else:
-            self.tmkCnt = ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmaxn,0) + 1
+            self.tmkCnt = ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmaxn, 0) + 1
 
         self.tmkUsbCnt = 0
         for iTMK in range(MAX_TMKUSB_NUMBER):
@@ -533,8 +532,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCmtgetsw,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtgetsw)
+            return ioctl_(_hVTMK4VxD, TMK_IOCmtgetsw, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtgetsw, 0)
 
     def tmkconfig(self, tmkNumber):
         if tmkNumber < 0 or tmkNumber >= self.tmkCnt + self.tmkUsbCnt:
@@ -558,7 +557,7 @@ class Mil1553LinuxDriver:
 
     def tmkgetmaxn(self):
         if _hVTMK4VxD != 0:
-            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmaxn) + self.tmkUsbCnt
+            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmaxn, 0) + self.tmkUsbCnt
         else:
             return self.tmkUsbCnt - 1
 
@@ -611,7 +610,7 @@ class Mil1553LinuxDriver:
 
     def tmkselected(self):
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCtmkselected)
+            return ioctl_(_hVTMK4VxD, TMK_IOCtmkselected, 0)
         else:
             return self.tmkCurNumber
 
@@ -619,8 +618,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmode)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetmode)
+            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmode, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetmode, 0)
 
     def tmksetcwbits(self, tmkSetControl):
         if self.tmkCurNumber < 0:
@@ -643,12 +642,13 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetcwbits)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetcwbits)
+            return ioctl_(_hVTMK4VxD, TMK_IOCtmkgetcwbits, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetcwbits, 0)
 
     def tmkwaitevents(self, maskEvents, fWait):
         class Arg(ctypes.Structure):
-            _fields_=[("arg",ctypes.c_uint32*2)]
+            _fields_ = [("arg", ctypes.c_uint32 * 2)]
+
         _VTMK4Arg = Arg()
         tmkMask = 0
         DrvMask = 0
@@ -697,10 +697,6 @@ class Mil1553LinuxDriver:
         else:
             ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCtmkgetevd, pEvD)
 
-
-
-
-
     def tmkgetinfo(self, pConfD):
         if self.tmkCurNumber < 0:
             return
@@ -713,15 +709,15 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcreset,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcreset, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcreset, 0)
 
     def mtreset(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCmtreset,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCmtreset, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCmtreset, 0)
 
     def mtdefirqmode(self, mtIrqMode):
         return self.bcdefirqmode(mtIrqMode)
@@ -737,8 +733,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetirqmode)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetirqmode)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetirqmode, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetirqmode, 0)
 
     def mtgetmaxbase(self):
         return self.bcgetmaxbase()
@@ -747,8 +743,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetmaxbase,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetmaxbase)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetmaxbase, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetmaxbase, 0)
 
     def mtdefbase(self, mtBasePC):
         return self.bcdefbase(mtBasePC)
@@ -764,8 +760,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetbase)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbase)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetbase, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbase, 0)
 
     def bcputw(self, bcAddr, bcData):
         if self.tmkCurNumber < 0:
@@ -859,8 +855,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetbus)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbus)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcgetbus, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetbus, 0)
 
     def bcstart(self, bcBase, bcCtrlCode):
         if self.tmkCurNumber < 0:
@@ -889,7 +885,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < self.tmkCnt:
             return ioctrext(_hVTMK4VxD, TMK_IOCbcdeflink, bcBase | (bcCtrlCode << 16))
         return ioctrext(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdeflink,
-                      bcBase | (bcCtrlCode << 16))
+                        bcBase | (bcCtrlCode << 16))
 
     def bcgetlink(self):
         # class C extends Structure {
@@ -913,8 +909,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcstop,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcstop, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcstop, 0)
 
     def bcgetstate(self):
         c = ctypes.c_uint32()
@@ -931,8 +927,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtreset,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtreset)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtreset, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtreset, 0)
 
     def rtdefirqmode(self, rtIrqMode):
         if self.tmkCurNumber < 0:
@@ -945,8 +941,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetirqmode)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetirqmode)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetirqmode, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetirqmode, 0)
 
     def rtdefmode(self, rtMode):
         if self.tmkCurNumber < 0:
@@ -959,15 +955,15 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetmode)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmode)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetmode, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmode, 0)
 
     def rtgetmaxpage(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetmaxpage)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmaxpage)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetmaxpage, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetmaxpage, 0)
 
     def rtdefpage(self, rtPage):
         if self.tmkCurNumber < 0:
@@ -980,8 +976,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpage)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpage)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpage, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpage, 0)
 
     def rtdefpagepc(self, rtPagePC):
         if self.tmkCurNumber < 0:
@@ -1001,15 +997,15 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpagepc)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagepc)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpagepc, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagepc, 0)
 
     def rtgetpagebus(self):
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpagebus)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagebus)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetpagebus, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetpagebus, 0)
 
     def rtdefaddress(self, rtAddress):
         if self.tmkCurNumber < 0:
@@ -1022,8 +1018,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetaddress)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetaddress)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetaddress, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetaddress, 0)
 
     def rtdefsubaddr(self, rtDir, rtSubAddr):
         if self.tmkCurNumber < 0:
@@ -1037,8 +1033,8 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetsubaddr)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetsubaddr)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetsubaddr, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetsubaddr, 0)
 
     def rtputw(self, rtAddr, rtData):
         if self.tmkCurNumber < 0:
@@ -1075,5 +1071,5 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetanswbits,0)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetanswbits)
+            return ioctl_(_hVTMK4VxD, TMK_IOCrtgetanswbits, 0)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtgetanswbits, 0)
