@@ -1,4 +1,5 @@
 import sys
+from enum import Enum
 
 is_windows = sys.platform.startswith('win')
 if not is_windows:
@@ -75,6 +76,43 @@ MT_GENER2_BL = 0x4000
 TMK_IRQ_OFF = 0x8000
 
 
+class MilErrorCodes(Enum):
+    SX_NOERR = 0
+    SX_MEO = 1
+    SX_TOA = 2
+    SX_TOD = 3
+    SX_ELN = 4
+    SX_ERAO = 5
+    SX_ESYN = 6
+    SX_EBC = 7
+
+
+class MilPacketStatus(Enum):
+    NEW = 0
+    SENT = 1
+    RECEIVED = 2
+    FAILED = 3
+
+
+class MilPacketBus(Enum):
+    BUS_A = 0
+    BUS_B = 1
+
+
+class MilPacketFormat(Enum):
+    CC_FMT_1 = 0x0
+    CC_FMT_2 = 0x1
+    CC_FMT_3 = 0x02
+    CC_FMT_4 = 0x03
+    CC_FMT_5 = 0x05
+    CC_FMT_6 = 0x04
+    CC_FMT_7 = 0x08
+    CC_FMT_8 = 0x0a
+    CC_FMT_9 = 0x0b
+    CC_FMT_10 = 0x0c
+    CC_FMT_UNKNOWN = 0xff
+
+
 class TTmkConfigData(Structure):
     _pack_ = 1
     _fields_ = [("nType", ctypes.c_uint16),
@@ -98,19 +136,21 @@ class MilPacket(Structure):
 
     def __str__(self):
         res = ""
-        res += "date: "+str(self.date) + "\r\n"
-        res += "status: "+str(self.status) + "\r\n"
-        res += "errorcode: "+self.errorcode + "\r\n"
+        res += "date: " + str(self.date) + "\r\n"
+        res += "status: " + str(self.status) + "\r\n"
+        res += "errorcode: " + str(self.errorcode) + "\r\n"
         res += 'CW %04X\r\n' % self.commandWord
+        res += 'format:%s\r\n' % str(self.format)
         res += 'AW %04X\r\n' % self.answerWord
-        res+=" ".join(["%04X" % i for i in self.dataWords])+"\r\n"
+        res += " ".join(["%04X" % i for i in self.dataWords]) + "\r\n"
         return res
+
     def __init__(self):
-        self.format = None
+        self.format = MilPacketFormat.CC_FMT_UNKNOWN
         self.date = datetime.datetime.now()
-        self.status = None
-        self.bus = 0
-        self.errorcode = "SX_NOERR"
+        self.status = MilPacketStatus.NEW
+        self.bus = MilPacketBus.BUS_A
+        self.errorcode = MilErrorCodes.SX_NOERR
 
     @staticmethod
     def createCopy(packet):
@@ -134,47 +174,32 @@ class MilPacket(Structure):
         res.commandWord = pBuffer[0]
         # this.sw = rawPacket.sw;
         res.errorcode = sw & 7
-        if res.errorcode == 0x00:
-            res.errorcode = "SX_NOERR"
-        elif res.errorcode == 0x01:
-            res.errorcode = "SX_MEO"
-        elif res.errorcode == 0x02:
-            res.errorcode = "SX_TOA"
-        elif res.errorcode == 0x03:
-            res.errorcode = "SX_TOD"
-        elif res.errorcode == 0x04:
-            res.errorcode = "SX_ELN"
-        elif res.errorcode == 0x05:
-            res.errorcode = "SX_ERAO"
-        elif res.errorcode == 0x06:
-            res.errorcode = "SX_ESYN"
-        elif res.errorcode == 0x07:
-            res.errorcode = "SX_EBC"
+        res.errorcode = MilErrorCodes(res.errorcode)
 
-        res.status = "RECEIVED"
+        res.status = MilPacketStatus.RECEIVED
 
-        if res.errorcode != "SX_NOERR":
-            res.status = "FAILED"
+        if res.errorcode != MilErrorCodes.SX_NOERR:
+            res.status = MilPacketStatus.FAILED
 
         res.format = MilPacket.calcFormat(res.commandWord)
         i = MilPacket.getWordsCount(res.commandWord)
         if i == 0:
             i = 32
 
-        if res.format == "CC_FMT_1":
+        if res.format == MilPacketFormat.CC_FMT_1:
             for m in range(i):
                 res.dataWords[m] = pBuffer[m + 1]
             res.answerWord = pBuffer[i + 1]
-        elif res.format == "CC_FMT_2":
+        elif res.format == MilPacketFormat.CC_FMT_2:
             res.answerWord = pBuffer[1]
             for m in range(i):
                 res.dataWords[m] = pBuffer[2 + m]
-        elif res.format == "CC_FMT_4":
+        elif res.format == MilPacketFormat.CC_FMT_4:
             res.answerWord = pBuffer[1]
-        elif res.format == "CC_FMT_5":
+        elif res.format == MilPacketFormat.CC_FMT_5:
             res.answerWord = pBuffer[1]
             res.dataWords[0] = pBuffer[2]
-        elif res.format == "CC_FMT_6":
+        elif res.format == MilPacketFormat.CC_FMT_6:
             res.answerWord = pBuffer[2]
             res.dataWords[0] = pBuffer[1]
         return res
@@ -202,21 +227,21 @@ class MilPacket(Structure):
         wordscount = MilPacket.getWordsCount(cmdword)
         isItMode = True if (subaddress == 0 or subaddress == 0x1f) else False
         if rtrbit == 0 and not isItMode:
-            return "CC_FMT_1"
+            return MilPacketFormat.CC_FMT_1
 
         elif rtrbit == 1 and not isItMode:
-            return "CC_FMT_2"
+            return MilPacketFormat.CC_FMT_2
 
         elif rtrbit == 1 and isItMode and (0 <= wordscount <= 15):
-            return "CC_FMT_4"
+            return MilPacketFormat.CC_FMT_4
 
         elif rtrbit == 1 and isItMode and (wordscount == 16 or wordscount == 18 or wordscount == 19):
-            return "CC_FMT_5"
+            return MilPacketFormat.CC_FMT_5
 
         elif rtrbit == 0 and isItMode and (wordscount == 17 or wordscount == 20 or wordscount == 21):
-            return "CC_FMT_6"
+            return MilPacketFormat.CC_FMT_6
 
-        return None
+        return MilPacketFormat.CC_FMT_UNKNOWN
 
 
 class Mil1553Device:
@@ -250,7 +275,7 @@ class Mil1553Device:
                         for i in range(32):
                             Msg.dataWords[i] = 0
                         Msg.dataWords[0] = self.driver.rtgetcmddata(Msg.commandWord & 31)
-                        Msg.status = "RECEIVED"
+                        Msg.status = MilPacketStatus.RECEIVED
 
                         answElcus = self.driver.rtgetanswbits()
                         if (answElcus & 0x1) == ANS_BIT_SREQ:
@@ -283,7 +308,7 @@ class Mil1553Device:
                         self.driver.rtgetblk(0, pBuffer, len)
                         for i in range(len):
                             Msg.dataWords[i] = pBuffer[i]
-                        Msg.status = "RECEIVED"
+                        Msg.status = MilPacketStatus.RECEIVED
 
                         answElcus = self.driver.rtgetanswbits()
                         if (answElcus & 0x1) == ANS_BIT_SREQ:
@@ -353,7 +378,7 @@ class Mil1553Device:
                     Msg.format = MilPacket.calcFormat(Msg.commandWord)
                     Msg.date = datetime.datetime.now()
                     cmdcodeWordCount = MilPacket.getWordsCount(Msg.commandWord)
-                    if Msg.format == "CC_FMT_1":
+                    if Msg.format == MilPacketFormat.CC_FMT_1:
                         wordcount = cmdcodeWordCount
                         if wordcount == 0:
                             wordcount = 32
@@ -361,7 +386,7 @@ class Mil1553Device:
                         for i in range(wordcount):
                             Msg.dataWords[i] = pBuffer[i]
                         Msg.answerWord = self.driver.bcgetw(1 + wordcount)
-                    elif Msg.format == "CC_FMT_2":
+                    elif Msg.format == MilPacketFormat.CC_FMT_2:
                         wordcount = cmdcodeWordCount
                         if wordcount == 0:
                             wordcount = 32
@@ -370,22 +395,21 @@ class Mil1553Device:
                             Msg.dataWords[i] = pBuffer[i]
                         Msg.answerWord = self.driver.bcgetw(1)
 
-                    elif Msg.format == "CC_FMT_4":
+                    elif Msg.format == MilPacketFormat.CC_FMT_4:
                         Msg.answerWord = self.driver.bcgetw(1)
-                    elif Msg.format == "CC_FMT_5":
+                    elif Msg.format == MilPacketFormat.CC_FMT_5:
                         Msg.answerWord = self.driver.bcgetw(1)
                         Msg.dataWords[0] = self.driver.bcgetw(2)
 
-
-                    elif Msg.format == "CC_FMT_6":
+                    elif Msg.format == MilPacketFormat.CC_FMT_6:
                         Msg.answerWord = self.driver.bcgetw(2)
                         Msg.dataWords[0] = self.driver.bcgetw(1)
 
                     if eventData.nInt == 1:
-                        Msg.status = "Received"
+                        Msg.status = MilPacketStatus.RECEIVED
 
                     if eventData.nInt == 2:
-                        Msg.status = "Failed"
+                        Msg.status = MilPacketStatus.FAILED
 
                         if eventData.union.bc.wResult == S_ERAO_MASK:
                             Msg.errorcode = "The error in a field of the address received RW is found out"
@@ -412,7 +436,7 @@ class Mil1553Device:
                     res = self.driver.tmkselect(self.cardnumber)
                     if res != 0:
                         print("tmkselect: ", res)
-                    if msg.format == "CC_FMT_1":
+                    if msg.format == MilPacketFormat.CC_FMT_1:
                         pBuffer[0] = msg.commandWord
                         for i in range(32):
                             pBuffer[i + 1] = msg.dataWords[i]
@@ -422,8 +446,8 @@ class Mil1553Device:
                         self.driver.bcdefbus(msg.bus)
                         self.driver.bcstart(0, DATA_BC_RT)
                         self.bcsent += 1
-                        msg.status = "SENT"
-                    elif msg.format == "CC_FMT_2":
+                        msg.status = MilPacketStatus.SENT
+                    elif msg.format == MilPacketFormat.CC_FMT_2:
                         res = self.driver.bcdefbase(0)
                         if res != 0:
                             print("bcdefbase: ", res)
@@ -435,25 +459,24 @@ class Mil1553Device:
                         if res != 0:
                             print("bcstart: " + res)
                         self.bcsent += 1
-                        msg.status = "SENT"
+                        msg.status = MilPacketStatus.SENT
 
-                    elif msg.format == "CC_FMT_4" or msg.format == "CC_FMT_5":
+                    elif msg.format == MilPacketFormat.CC_FMT_4 or msg.format == MilPacketFormat.CC_FMT_5:
                         self.driver.bcdefbase(0)
                         self.driver.bcputw(0, msg.commandWord)
                         self.driver.bcdefbus(msg.bus)
                         self.driver.bcstart(0, msg.format.asInteger())
                         self.bcsent += 1
-                        msg.status = "SENT"
+                        msg.status = MilPacketStatus.SENT
 
-
-                    elif msg.format == "CC_FMT_6":
+                    elif msg.format == MilPacketFormat.CC_FMT_6:
                         self.driver.bcdefbase(0)
                         self.driver.bcputw(0, msg.commandWord)
                         self.driver.bcputw(1, msg.dataWords[0])
                         self.driver.bcdefbus(msg.bus)
                         self.driver.bcstart(0, msg.format.asInteger())
                         self.bcsent += 1
-                        msg.status = "SENT"
+                        msg.status = MilPacketStatus.SENT
 
     def __init__(self, cardnumber=0):
         self.cardnumber = cardnumber
