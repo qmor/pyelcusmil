@@ -34,7 +34,6 @@ def open_(name, mode):
     return res
 
 
-
 TMK_VERSION_MIN = 0x0403
 TMK_VERSION = 0x0406
 TMKUSB_VERSION_MIN = 0x0107
@@ -488,21 +487,22 @@ class Mil1553LinuxDriver:
     def tmk_open(self):
         global _hVTMK4VxD
         _VTMK4Arg = 0
-        if _hVTMK4VxD != 0:
-            return 0
         self.tmkCnt = 0
-        _hVTMK4VxD = open_("/dev/tmk1553b", 0)
-        if _hVTMK4VxD < 0:
-            _hVTMK4VxD = 0
-        _VTMK4Arg = ioctl_(_hVTMK4VxD, TMK_IOCGetVersion, 0)
-        if (_VTMK4Arg < 0) or (_VTMK4Arg < TMK_VERSION_MIN):
-            os.close(Mil1553LinuxDriver._hVTMK4VxD)
-            Mil1553LinuxDriver._hVTMK4VxD = 0
-            return VTMK_BAD_VERSION
-        else:
+        self.tmkUsbCnt = 0
+        if _hVTMK4VxD == 0:
+            _hVTMK4VxD = open_("/dev/tmk1553b", 0)
+            if _hVTMK4VxD < 0:
+                _hVTMK4VxD = 0
+            if _hVTMK4VxD != 0:
+                _VTMK4Arg = ioctl_(_hVTMK4VxD, TMK_IOCGetVersion, 0)
+                if (_VTMK4Arg < 0) or (_VTMK4Arg < TMK_VERSION_MIN):
+                    os.close(Mil1553LinuxDriver._hVTMK4VxD)
+                    Mil1553LinuxDriver._hVTMK4VxD = 0
+                    return VTMK_BAD_VERSION
+
+        if _hVTMK4VxD != 0:
             self.tmkCnt = ioctl_(_hVTMK4VxD, TMK_IOCtmkgetmaxn, 0) + 1
 
-        self.tmkUsbCnt = 0
         for iTMK in range(MAX_TMKUSB_NUMBER):
             self._ahVTMK4VxDusb[iTMK] = 0
             self.tmkUsbNumMap[iTMK] = 0
@@ -754,7 +754,7 @@ class Mil1553LinuxDriver:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
             return ioctl_(_hVTMK4VxD, TMK_IOCbcdefbase, bcBasePC)
-        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbase & 0xffffffff, bcBasePC)
+        return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbase, bcBasePC)
 
     def bcgetbase(self):
         if self.tmkCurNumber < 0:
@@ -787,11 +787,13 @@ class Mil1553LinuxDriver:
             return _VTMK4Arg
         ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcgetansw, _VTMK4Arg)
         return _VTMK4Arg
-
+    class PutGetBlock(ctypes.Union):
+        _fields_ = [("long",ctypes.c_ulong*2),
+                    ("dword",ctypes.c_uint*4)]
     def rtgetblk(self, rtAddr, pcBuffer, cwLength):
-        c = (ctypes.c_void_p * 2)()
-        c[0] = rtAddr | cwLength << 16
-        c[1] = ctypes.addressof(pcBuffer)
+        c = Mil1553LinuxDriver.PutGetBlock()
+        c.dword[0] = rtAddr | (cwLength << 16)
+        c.long[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -808,9 +810,9 @@ class Mil1553LinuxDriver:
         ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputcmddata, rtBusCommand | (rtData << 16))
 
     def rtputblk(self, rtAddr, pcBuffer, cwLength):
-        c = (ctypes.c_void_p * 2)()
-        c[0] = rtAddr | cwLength << 16
-        c[1] = ctypes.addressof(pcBuffer)
+        c = Mil1553LinuxDriver.PutGetBlock()
+        c.dword[0] = rtAddr | (cwLength << 16)
+        c.long[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -819,9 +821,9 @@ class Mil1553LinuxDriver:
         ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCrtputblk, c)
 
     def bcputblk(self, bcAddr, pcBuffer, cwLength):
-        c = (ctypes.c_void_p * 2)()
-        c[0] = bcAddr | cwLength << 16
-        c[1] = ctypes.addressof(pcBuffer)
+        c = Mil1553LinuxDriver.PutGetBlock()
+        c.dword[0] = bcAddr | (cwLength << 16)
+        c.long[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -833,9 +835,9 @@ class Mil1553LinuxDriver:
         self.bcgetblk(mtAddr, pcBuffer, cwLength)
 
     def bcgetblk(self, bcAddr, pcBuffer, cwLength):
-        c = (ctypes.c_void_p * 2)()
-        c[0] = bcAddr | cwLength << 16
-        c[1] = ctypes.addressof(pcBuffer)
+        c = Mil1553LinuxDriver.PutGetBlock()
+        c.dword[0] = bcAddr | (cwLength << 16)
+        c.long[1] = ctypes.addressof(pcBuffer)
         if self.tmkCurNumber < 0:
             return
         if self.tmkCurNumber < self.tmkCnt:
@@ -848,7 +850,7 @@ class Mil1553LinuxDriver:
         if self.tmkCurNumber < 0:
             return TMK_BAD_NUMBER
         if self.tmkCurNumber < self.tmkCnt:
-            return ioctl_(_hVTMK4VxD, TMK_IOCbcdefbus, bcBus)
+            return ioctl_(_hVTMK4VxD, TMK_IOCbcdefbus, bcBus.value)
         return ioctl_(self._ahVTMK4VxDusb[self.tmkCurNumber - self.tmkCnt], TMK_IOCbcdefbus, bcBus)
 
     def bcgetbus(self):

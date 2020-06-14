@@ -249,6 +249,7 @@ class MilPacket(Structure):
 
 
 class Mil1553Device:
+    lock = threading.Lock()
     def innerlistenloopMT(self, list):
         while self.threadRunning:
             if not list.empty():
@@ -268,7 +269,7 @@ class Mil1553Device:
             if events == (1 << self.cardnumber):
                 passed = True
             if passed:
-                with threading.Lock():
+                with self.lock:
                     self.driver.tmkselect(self.cardnumber)
                     self.driver.tmkgetevd(eventData)
                     Msg = MilPacket()
@@ -344,7 +345,7 @@ class Mil1553Device:
             if events == (1 << self.cardnumber):
                 passed = True
             if passed:
-                with threading.Lock():
+                with self.lock:
                     self.driver.tmkselect(self.cardnumber)
                     self.driver.tmkgetevd(eventData)
                     if eventData.nInt == 3:
@@ -370,7 +371,7 @@ class Mil1553Device:
             if events == (1 << self.cardnumber):
                 passed = True
             if passed:
-                with threading.Lock():
+                with self.lock:
                     res = self.driver.tmkselect(self.cardnumber)
                     if res != 0:
                         print("tmkselect: ", res)
@@ -437,7 +438,7 @@ class Mil1553Device:
             if not self.packetsForSendBC.empty():
                 msg = self.packetsForSendBC.get()
                 msg.format = MilPacket.calcFormat(msg.commandWord)
-                with threading.Lock():
+                with self.lock:
                     res = self.driver.tmkselect(self.cardnumber)
                     if res != 0:
                         print("tmkselect: ", res)
@@ -513,7 +514,7 @@ class Mil1553Device:
         self.listeners.append(listener)
 
     def sendPacketRT(self, packet):
-        with threading.Lock():
+        with self.lock:
             result = self.driver.tmkselect(self.cardnumber)
             if result != 0:
                 raise Exception("Ошибка tmkselect в sendPacketRT ", result)
@@ -544,30 +545,30 @@ class Mil1553Device:
             raise ("Ошибка TmkOpen ", result)
         result = self.driver.tmkconfig(self.cardnumber)
         if result != 0:
-            raise ("Ошибка tmkconfig ", result)
+            raise Exception("Ошибка tmkconfig ", result)
         configData = TTmkConfigData()
         self.driver.tmkgetinfo(configData)
         print(configData)
         result = self.driver.tmkselect(self.cardnumber)
         if result != 0:
-            raise ("Ошибка tmkselect ", result)
+            raise Exception("Ошибка tmkselect ", result)
         if mode == "BC":
             result = self.driver.bcreset()
             if result != 0:
-                raise ("Ошибка bcreset() ", result)
+                raise Exception("Ошибка bcreset() ", result)
 
             result |= self.driver.bcdefirqmode(ElcusConst.RT_GENER1_BL | ElcusConst.RT_GENER2_BL)
 
             if result != 0:
-                raise ("Ошибка bcdefirqmode() ", result)
+                raise Exception("Ошибка bcdefirqmode() ", result)
             self.runnerThread = Thread(target=self.listenloopBC, daemon=True)
         elif mode == "MT":
             result = self.driver.mtreset()
             if result != 0:
-                raise ("Ошибка mtreset ", result)
+                raise Exception("Ошибка mtreset ", result)
             result |= self.driver.mtdefirqmode(ElcusConst.RT_GENER1_BL | ElcusConst.RT_GENER2_BL)
             if result != 0:
-                raise ("Ошибка mtdefirqmode() ", result)
+                raise Exception("Ошибка mtdefirqmode() ", result)
             self.mtMaxBase = self.driver.mtgetmaxbase()
             for i in range(self.mtMaxBase):
                 self.driver.mtdefbase(i)
@@ -600,7 +601,7 @@ class Mil1553Device:
 
     def setPause(self, pause):
         if self.mode == "RT":
-            with threading.Lock():
+            with self.lock:
                 result = self.driver.tmkselect(self.cardnumber)
                 if result != 0:
                     raise Exception("Ошибка tmkselect в функции setPause() ", result)
@@ -611,7 +612,7 @@ class Mil1553Device:
                     raise Exception("Ошибка rtenable в функции setPause() ", result)
 
             elif self.mode == "MT":
-                with threading.Lock():
+                with self.lock:
                     result = self.driver.tmkselect(self.cardnumber)
                     if result != 0:
                         raise Exception("Ошибка tmkselect в функции setPause() ", result)
