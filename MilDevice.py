@@ -1,4 +1,5 @@
 import sys
+
 is_windows = sys.platform.startswith('win')
 if not is_windows:
     try:
@@ -13,6 +14,7 @@ from threading import Thread
 import threading
 import datetime
 import queue
+
 try:
     from .TTmkEventData import TTmkEventData
 except:
@@ -94,12 +96,21 @@ class MilPacket(Structure):
                 ("dataWords", ctypes.c_uint16 * 32),
                 ("answerWord", ctypes.c_uint16)]
 
+    def __str__(self):
+        res = ""
+        res += "date: "+str(self.date) + "\r\n"
+        res += "status: "+str(self.status) + "\r\n"
+        res += "errorcode: "+self.errorcode + "\r\n"
+        res += 'CW %04X\r\n' % self.commandWord
+        res += 'AW %04X\r\n' % self.answerWord
+        res+=" ".join(["%04X" % i for i in self.dataWords])+"\r\n"
+        return res
     def __init__(self):
         self.format = None
         self.date = datetime.datetime.now()
         self.status = None
         self.bus = 0
-        self.errorcode = ""
+        self.errorcode = "SX_NOERR"
 
     @staticmethod
     def createCopy(packet):
