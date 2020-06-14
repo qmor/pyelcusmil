@@ -226,17 +226,18 @@ class MilPacket(Structure):
 
     @staticmethod
     def calcFormat(cmdword):
+        address = MilPacket.getRtAddress(cmdword)
         rtrbit = MilPacket.getRTRBit(cmdword)
         subaddress = MilPacket.getSubAddress(cmdword)
         wordscount = MilPacket.getWordsCount(cmdword)
         isItMode = True if (subaddress == 0 or subaddress == 0x1f) else False
-        if rtrbit == 0 and not isItMode:
+        if rtrbit == 0 and not isItMode and address != 31:
             return MilPacketFormat.CC_FMT_1
 
-        elif rtrbit == 1 and not isItMode:
+        elif rtrbit == 1 and not isItMode and address != 31:
             return MilPacketFormat.CC_FMT_2
 
-        elif rtrbit == 1 and isItMode and (0 <= wordscount <= 15):
+        elif rtrbit == 1 and isItMode and (0 <= wordscount <= 15) and address != 31:
             return MilPacketFormat.CC_FMT_4
 
         elif rtrbit == 1 and isItMode and (wordscount == 16 or wordscount == 18 or wordscount == 19):
@@ -245,11 +246,15 @@ class MilPacket(Structure):
         elif rtrbit == 0 and isItMode and (wordscount == 17 or wordscount == 20 or wordscount == 21):
             return MilPacketFormat.CC_FMT_6
 
+        elif address == 31 and not isItMode and rtrbit == 0:
+            return MilPacketFormat.CC_FMT_7
+
         return MilPacketFormat.CC_FMT_UNKNOWN
 
 
 class Mil1553Device:
     lock = threading.Lock()
+
     def innerlistenloopMT(self, list):
         while self.threadRunning:
             if not list.empty():
@@ -305,7 +310,7 @@ class Mil1553Device:
                         Msg.format = MilPacket.calcFormat(Msg.commandWord)
                         self.driver.rtdefsubaddr(
                             ElcusConst.RT_RECEIVE if (
-                                        MilPacket.getRTRBit(Msg.commandWord) == 0) else ElcusConst.RT_TRANSMIT,
+                                    MilPacket.getRTRBit(Msg.commandWord) == 0) else ElcusConst.RT_TRANSMIT,
                             MilPacket.getSubAddress(Msg.commandWord))
                         ln = MilPacket.getWordsCount(Msg.commandWord)
                         if ln == 0:
@@ -471,7 +476,7 @@ class Mil1553Device:
                         self.driver.bcdefbase(0)
                         self.driver.bcputw(0, msg.commandWord)
                         self.driver.bcdefbus(msg.bus)
-                        self.driver.bcstart(0, msg.format.asInteger())
+                        self.driver.bcstart(0, msg.format.value)
                         self.bcsent += 1
                         msg.status = MilPacketStatus.SENT
 
@@ -480,7 +485,7 @@ class Mil1553Device:
                         self.driver.bcputw(0, msg.commandWord)
                         self.driver.bcputw(1, msg.dataWords[0])
                         self.driver.bcdefbus(msg.bus)
-                        self.driver.bcstart(0, msg.format.asInteger())
+                        self.driver.bcstart(0, msg.format.value)
                         self.bcsent += 1
                         msg.status = MilPacketStatus.SENT
 
@@ -530,8 +535,7 @@ class Mil1553Device:
                         time.sleep(0.01)
                     self.driver.rtputblk(0, packet.dataWords, wordcountModeCode)
                 else:  # if Mode
-                    self.driver.rtputcmddata((packet.commandWord & (1 << 10) | 31),
-                                             packet.dataWords[0])  # first  dataword is   for CMD data
+                    self.driver.rtputcmddata((packet.commandWord & 31) | (1 << 10), packet.dataWords[0])  # first  dataword is   for CMD data
 
     def sendpacket(self, packet):
         if self.mode == 'BC':
@@ -539,7 +543,11 @@ class Mil1553Device:
         elif self.mode == "RT":
             self.sendPacketRT(packet)
 
-    def init_as(self, mode="BC", rtaddress=0):
+    def done(self):
+        result = self.driver.tmkdone(self.cardnumber)
+        return result
+
+    def init_as(self, mode="BC", rtaddress=0, verbose=False):
         result = self.driver.tmk_open()
         if result != 0:
             raise ("Ошибка TmkOpen ", result)
@@ -548,7 +556,8 @@ class Mil1553Device:
             raise Exception("Ошибка tmkconfig ", result)
         configData = TTmkConfigData()
         self.driver.tmkgetinfo(configData)
-        print(configData)
+        if verbose:
+            print(configData)
         result = self.driver.tmkselect(self.cardnumber)
         if result != 0:
             raise Exception("Ошибка tmkselect ", result)
@@ -618,7 +627,7 @@ class Mil1553Device:
                         raise Exception("Ошибка tmkselect в функции setPause() ", result)
 
                     result = self.stopmt() if pause else self.startmt(self.mtLastBase, (
-                                ElcusConst.CX_CONT | ElcusConst.CX_NOINT | ElcusConst.CX_NOSIG))
+                            ElcusConst.CX_CONT | ElcusConst.CX_NOINT | ElcusConst.CX_NOSIG))
 
                     if result != 0:
                         raise Exception("Ошибка startmt/stopmt в функции setPause() ", result)
