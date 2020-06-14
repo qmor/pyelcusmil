@@ -1,4 +1,7 @@
-from .LTMK import ioctl
+try:
+    from .LTMK import ioctl
+except:
+    from LTMK import ioctl
 import fcntl
 import os
 import ctypes

@@ -1,7 +1,10 @@
 import sys
 is_windows = sys.platform.startswith('win')
 if not is_windows:
-    from .driverLinux import Mil1553LinuxDriver as MilDriver
+    try:
+        from .driverLinux import Mil1553LinuxDriver as MilDriver
+    except:
+        from driverLinux import Mil1553LinuxDriver as MilDriver
 else:
     from .driverWindows import Mil1553WindowsDriver as MilDriver
 from ctypes import Structure
@@ -10,7 +13,10 @@ from threading import Thread
 import threading
 import datetime
 import queue
-from .TTmkEventData import TTmkEventData
+try:
+    from .TTmkEventData import TTmkEventData
+except:
+    from TTmkEventData import TTmkEventData
 import time
 
 ANS_BIT_SREQ = 0x01
