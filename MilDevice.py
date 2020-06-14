@@ -1,12 +1,16 @@
-import driverLinux
-from driverLinux import Mil1553LinuxDriver
+import sys
+is_windows = sys.platform.startswith('win')
+if not is_windows:
+    from .driverLinux import Mil1553LinuxDriver as MilDriver
+else:
+    from .driverWindows import Mil1553WindowsDriver as MilDriver
 from ctypes import Structure
 import ctypes
 from threading import Thread
 import threading
 import datetime
 import queue
-from driverLinux import TTmkEventData
+from .TTmkEventData import TTmkEventData
 import time
 
 ANS_BIT_SREQ = 0x01
@@ -436,7 +440,7 @@ class Mil1553Device:
 
     def __init__(self, cardnumber=0):
         self.cardnumber = cardnumber
-        self.driver = Mil1553LinuxDriver()
+        self.driver = MilDriver()
         self.packetsForSendBC = queue.Queue()
         self.mode = None
         self.bcsent = 0

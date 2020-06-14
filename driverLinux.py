@@ -1,4 +1,4 @@
-from LTMK import ioctl
+from .LTMK import ioctl
 import fcntl
 import os
 import ctypes
@@ -7,47 +7,7 @@ from ctypes import CDLL
 libc = CDLL("libc.so.6")
 
 
-class BC_(ctypes.Structure):
-    _fields_ = [("wResult", ctypes.c_uint16),
-                ("wAW1", ctypes.c_uint16),
-                ("wAW2", ctypes.c_uint16)]
 
-
-class BCX_(ctypes.Structure):
-    _fields_ = [("wBase", ctypes.c_uint16),
-                ("wResultX", ctypes.c_uint16)]
-
-
-class RT_(ctypes.Structure):
-    _fields_ = [("wStatus", ctypes.c_uint16),
-                ("wCmd", ctypes.c_uint16)]
-
-
-class MT_(ctypes.Structure):
-    _fields_ = [("wBase", ctypes.c_uint16),
-                ("wResultX", ctypes.c_uint16)]
-
-
-class MRT_(ctypes.Structure):
-    _fields_ = [("wStatus", ctypes.c_uint16)]
-
-
-class TMK_(ctypes.Structure):
-    _fields_ = [("wRequest", ctypes.c_uint16)]
-
-class TTmkEventData(ctypes.Structure):
-
-    class EventDataUnion(ctypes.Union):
-        _fields_ = [("bc", BC_),
-                    ("bcx", BCX_),
-                    ("rt", RT_),
-                    ("mt", MT_),
-                    ("mrt", MRT_),
-                    ("tmk", TMK_)]
-
-    _fields_=[("nInt",ctypes.c_uint32),
-              ("wMode",ctypes.c_uint16),
-              ("union",EventDataUnion)]
 
 
 
@@ -727,7 +687,6 @@ class Mil1553LinuxDriver:
         return tmkMask
 
     def tmkgetevd(self, pEvD):
-        pass
         if self.tmkCurNumber < 0:
             return
         elif self.tmkCurNumber < self.tmkCnt:
