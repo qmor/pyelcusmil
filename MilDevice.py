@@ -280,7 +280,7 @@ class Mil1553Device:
                     Msg = MilPacket()
                     if eventData.nInt == 1:  # rtIntCmd
                         Msg.answerWord = 0
-                        Msg.commandWord = eventData.union.rt.wCmd
+                        Msg.commandWord = eventData.union.rt.wStatus
                         Msg.format = MilPacket.calcFormat(Msg.commandWord)
                         for i in range(32):
                             Msg.dataWords[i] = 0
@@ -368,7 +368,6 @@ class Mil1553Device:
     def listenloopBC(self):
 
         eventData = TTmkEventData()
-        Msg = MilPacket()
         pBuffer = (ctypes.c_uint16 * 64)()
         while self.threadRunning:
             passed = False
@@ -377,6 +376,7 @@ class Mil1553Device:
                 passed = True
             if passed:
                 with self.lock:
+                    Msg = MilPacket()
                     res = self.driver.tmkselect(self.cardnumber)
                     if res != 0:
                         print("tmkselect: ", res)
@@ -419,8 +419,11 @@ class Mil1553Device:
                     if eventData.nInt == 1:
                         Msg.status = MilPacketStatus.RECEIVED
 
-                    if eventData.nInt == 2:
+                    elif eventData.nInt == 2:
                         Msg.status = MilPacketStatus.FAILED
+                    else:
+                        pass
+                        #print("EventData.nInt ",eventData.nInt)
 
                         if eventData.union.bc.wResult == ElcusConst.S_ERAO_MASK:
                             Msg.errorcode = "The error in a field of the address received RW is found out"

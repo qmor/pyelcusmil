@@ -8,6 +8,43 @@ first one for BC
 second one for RT
 '''
 
+class TestBcFormat6(unittest.TestCase):
+    def listenerBC(self, packet):
+        #print("listenerBC")
+        self.packetBC = packet
+
+    def listenerRT(self, packet):
+        self.packetRT = packet
+        print(self.packetRT)
+        print("listenerRT")
+
+    def setUp(self):
+        self.packetRT = None
+        self.packetBC = None
+        self.device1 = Mil1553Device(cardnumber=0)
+        self.device1.init_as(mode="BC")
+        self.device1.addListener(self.listenerBC)
+        self.device2 = Mil1553Device(cardnumber=1)
+        self.device2.init_as(mode="RT", rtaddress=15)
+        self.device2.addListener(self.listenerRT)
+        self.device2.setPause(False)
+
+    def tearDown(self):
+        self.device1.done()
+        self.device2.done()
+
+    def test(self):
+        packet = MilPacket()
+        packet.commandWord = MilPacket.makeCW(15, 0, 31, 17)  # команда - sync
+        packet.dataWords[0] = 0x1488
+        self.device1.sendpacket(packet)
+        time.sleep(2)
+        self.assertIsNotNone(self.packetBC)
+        self.assertIsNotNone(self.packetRT)
+        self.assertEqual(self.packetRT.format, MilPacketFormat.CC_FMT_6)
+        self.assertEqual(self.packetRT.status, MilPacketStatus.RECEIVED)
+        self.assertEqual(self.packetRT.dataWords[0], 0x1488)
+
 
 class TestBcFormat5(unittest.TestCase):
     def listenerBC(self, packet):
@@ -43,8 +80,8 @@ class TestBcFormat5(unittest.TestCase):
         self.device1.sendpacket(packet)
         time.sleep(1)
         self.assertEqual(self.packetBC.format, MilPacketFormat.CC_FMT_5)
-        self.assertEqual(self.packetBC.status, MilPacketStatus.RECEIVED)
         self.assertEqual(self.packetBC.dataWords[0], 0x1488)
+        self.assertEqual(MilPacketStatus.RECEIVED, self.packetBC.status)
 
 class TestBcFormat4(unittest.TestCase):
     def listenerBC(self, packet):
