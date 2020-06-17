@@ -415,7 +415,16 @@ class Mil1553Device:
                     elif Msg.format == MilPacketFormat.CC_FMT_6:
                         Msg.answerWord = self.driver.bcgetw(2)
                         Msg.dataWords[0] = self.driver.bcgetw(1)
-
+                    elif Msg.format == MilPacketFormat.CC_FMT_7:
+                        Msg.answerWord = 0
+                        wordcount = cmdcodeWordCount
+                        if wordcount == 0:
+                            wordcount = 32
+                        self.driver.bcgetblk(1, pBuffer, wordcount)
+                        for i in range(wordcount):
+                            Msg.dataWords[i] = pBuffer[i]
+                    else:
+                        raise Exception("ListenLoopBC process interrupt for not realised format ",Msg.format)
                     if eventData.nInt == 1:
                         Msg.status = MilPacketStatus.RECEIVED
 
@@ -491,7 +500,18 @@ class Mil1553Device:
                         self.driver.bcstart(0, msg.format.value)
                         self.bcsent += 1
                         msg.status = MilPacketStatus.SENT
-
+                    elif msg.format == MilPacketFormat.CC_FMT_7:
+                        pBuffer[0] = msg.commandWord
+                        for i in range(32):
+                            pBuffer[i + 1] = msg.dataWords[i]
+                        self.driver.bcdefbase(0)
+                        self.driver.bcputblk(0, pBuffer, 64)
+                        self.driver.bcdefbus(msg.bus)
+                        self.driver.bcstart(0, ElcusConst.DATA_BC_RT_BRCST)
+                        self.bcsent += 1
+                        msg.status = MilPacketStatus.SENT
+                    else:
+                        raise Exception("ListenLoopBC unkown format for CW %04X" % msg.commandWord)
     def __init__(self, cardnumber=0):
         self.cardnumber = cardnumber
         self.driver = MilDriver()
@@ -598,7 +618,7 @@ class Mil1553Device:
             if result != 0:
                 raise ("Ошибка rtdefaddress ", result)
             self.rtaddress = rtaddress
-            result = self.driver.rtdefmode(0)
+            result = self.driver.rtdefmode(ElcusConst.RT_BRCST_MODE)
             result |= self.driver.rtdefirqmode(0)
             self.driver.rtenable(ElcusConst.RT_DISABLE)
             self.runnerThread = Thread(target=self.listenloopRT, daemon=True)

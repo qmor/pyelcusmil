@@ -9,6 +9,49 @@ second one for RT
 '''
 
 
+class TestBCFormat7(unittest.TestCase):
+    def setUp(self):
+        self.packetRT = None
+        self.packetBC = None
+        self.device1 = Mil1553Device(cardnumber=0)
+        self.device1.init_as(mode="BC")
+        self.device1.addListener(self.listenerBC)
+        self.device2 = Mil1553Device(cardnumber=1)
+        self.device2.init_as(mode="RT", rtaddress=15)
+        self.device2.addListener(self.listenerRt)
+        self.device2.setPause(False)
+
+    def tearDown(self):
+        self.device1.done()
+        self.device2.done()
+
+    def listenerRt(self, packet):
+        self.packetRT = MilPacket.createCopy(packet)
+        # print("RT received")
+
+    def listenerBC(self, packet):
+        self.packetBC = MilPacket.createCopy(packet)
+        # print("BC received")
+
+    def test(self):
+
+        packet = MilPacket()
+        packet.commandWord = MilPacket.makeCW(31, 0, 16, 0)
+        for i in range(32):
+            packet.dataWords[i] = random.randrange(0, 0xffff)
+        self.device1.sendpacket(packet)
+        time.sleep(0.5)
+        self.assertIsNotNone(self.packetBC)
+        self.assertIsNotNone(self.packetRT)
+        self.assertEqual(self.packetRT.commandWord, self.packetBC.commandWord & 0x7ff)
+        self.assertEqual(MilPacketFormat.CC_FMT_1, self.packetRT.format)
+        self.assertEqual(MilPacketFormat.CC_FMT_7, self.packetBC.format)
+        # print(self.packetBC)
+        # print(self.packetRT)
+        for i in range(32):
+            self.assertEqual(self.packetBC.dataWords[i], self.packetRT.dataWords[i])
+
+
 class TestBcFormat6(unittest.TestCase):
     def listenerBC(self, packet):
         # print("listenerBC")
@@ -42,9 +85,9 @@ class TestBcFormat6(unittest.TestCase):
         time.sleep(0.5)
         self.assertIsNotNone(self.packetBC)
         self.assertIsNotNone(self.packetRT)
-        self.assertEqual(self.packetRT.format, MilPacketFormat.CC_FMT_6)
-        self.assertEqual(self.packetRT.status, MilPacketStatus.RECEIVED)
-        self.assertEqual(self.packetRT.dataWords[0], 0x1488)
+        self.assertEqual(MilPacketFormat.CC_FMT_6, self.packetRT.format)
+        self.assertEqual(MilPacketStatus.RECEIVED, self.packetRT.status)
+        self.assertEqual(0x1488, self.packetRT.dataWords[0])
 
 
 class TestBcFormat5(unittest.TestCase):
