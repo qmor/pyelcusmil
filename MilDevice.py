@@ -547,6 +547,8 @@ class Mil1553Device:
             self.sendPacketRT(packet)
 
     def done(self):
+        self.threadRunning = False
+        self.runnerThread.join()
         result = self.driver.tmkdone(self.cardnumber)
         return result
 

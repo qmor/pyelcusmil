@@ -8,15 +8,16 @@ first one for BC
 second one for RT
 '''
 
+
 class TestBcFormat6(unittest.TestCase):
     def listenerBC(self, packet):
-        #print("listenerBC")
+        # print("listenerBC")
         self.packetBC = packet
 
     def listenerRT(self, packet):
         self.packetRT = packet
-        print(self.packetRT)
-        print("listenerRT")
+        # print(self.packetRT)
+        # print("listenerRT")
 
     def setUp(self):
         self.packetRT = None
@@ -38,7 +39,7 @@ class TestBcFormat6(unittest.TestCase):
         packet.commandWord = MilPacket.makeCW(15, 0, 31, 17)  # команда - sync
         packet.dataWords[0] = 0x1488
         self.device1.sendpacket(packet)
-        time.sleep(2)
+        time.sleep(0.5)
         self.assertIsNotNone(self.packetBC)
         self.assertIsNotNone(self.packetRT)
         self.assertEqual(self.packetRT.format, MilPacketFormat.CC_FMT_6)
@@ -48,11 +49,11 @@ class TestBcFormat6(unittest.TestCase):
 
 class TestBcFormat5(unittest.TestCase):
     def listenerBC(self, packet):
-        #print("listenerBC")
+        # print("listenerBC")
         self.packetBC = packet
 
     def listenerRT(self, packet):
-        #print("listenerRT")
+        # print("listenerRT")
         pass
 
     def setUp(self):
@@ -65,7 +66,7 @@ class TestBcFormat5(unittest.TestCase):
         self.device2.init_as(mode="RT", rtaddress=15)
         self.device2.addListener(self.listenerRT)
         self.device2.setPause(False)
-        packet =MilPacket()
+        packet = MilPacket()
         packet.commandWord = MilPacket.makeCW(15, 1, 31, 16)  # команда - передать ВС
         packet.dataWords[0] = 0x1488
         self.device2.sendpacket(packet)
@@ -78,18 +79,19 @@ class TestBcFormat5(unittest.TestCase):
         packet = MilPacket()
         packet.commandWord = MilPacket.makeCW(15, 1, 31, 16)  # команда - передать ВС
         self.device1.sendpacket(packet)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEqual(self.packetBC.format, MilPacketFormat.CC_FMT_5)
         self.assertEqual(self.packetBC.dataWords[0], 0x1488)
         self.assertEqual(MilPacketStatus.RECEIVED, self.packetBC.status)
 
+
 class TestBcFormat4(unittest.TestCase):
     def listenerBC(self, packet):
-        #print("listenerBC")
+        # print("listenerBC")
         self.packetBC = packet
 
     def listenerRT(self, packet):
-        #print("listenerRT")
+        # print("listenerRT")
         pass
 
     def setUp(self):
@@ -111,9 +113,10 @@ class TestBcFormat4(unittest.TestCase):
         packet = MilPacket()
         packet.commandWord = MilPacket.makeCW(15, 1, 31, 2)  # команда - передать ОС
         self.device1.sendpacket(packet)
-        time.sleep(1)
-        self.assertEqual(self.packetBC.format, MilPacketFormat.CC_FMT_4)
-        self.assertEqual(self.packetBC.status, MilPacketStatus.RECEIVED)
+        time.sleep(0.5)
+        self.assertEqual(MilPacketFormat.CC_FMT_4, self.packetBC.format)
+        self.assertEqual(MilPacketStatus.RECEIVED, self.packetBC.status)
+
 
 class TestBcFormat2(unittest.TestCase):
     def listenerBC(self, packet):
@@ -143,10 +146,10 @@ class TestBcFormat2(unittest.TestCase):
         packet = MilPacket()
         packet.commandWord = self.packetRT.commandWord
         self.device1.sendpacket(packet)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEqual(self.packetRT.commandWord, self.packetBC.commandWord)
-        self.assertEqual(self.packetRT.format, MilPacketFormat.CC_FMT_2)
-        self.assertEqual(self.packetBC.format, MilPacketFormat.CC_FMT_2)
+        self.assertEqual(MilPacketFormat.CC_FMT_2, self.packetRT.format)
+        self.assertEqual(MilPacketFormat.CC_FMT_2, self.packetBC.format)
         # print(self.packetBC)
         # print(self.packetRT)
         for i in range(32):
@@ -188,10 +191,10 @@ class TestBCFormat1(unittest.TestCase):
         for i in range(32):
             packet.dataWords[i] = random.randrange(0, 0xffff)
         self.device1.sendpacket(packet)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEqual(self.packetRT.commandWord, self.packetBC.commandWord & 0x7ff)
-        self.assertEqual(self.packetRT.format, MilPacketFormat.CC_FMT_1)
-        self.assertEqual(self.packetBC.format, MilPacketFormat.CC_FMT_1)
+        self.assertEqual(MilPacketFormat.CC_FMT_1, self.packetRT.format)
+        self.assertEqual(MilPacketFormat.CC_FMT_1, self.packetBC.format)
         # print(self.packetBC)
         # print(self.packetRT)
         for i in range(32):
